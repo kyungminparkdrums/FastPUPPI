@@ -163,7 +163,7 @@ process.p = cms.Path(
         process.l1pfmetTable + process.l1pfmetCentralTable
         )
 process.p.associate(process.extraPFStuff)
-process.TFileService = cms.Service("TFileService", fileName = cms.string("Ntuples/perfTuple.root"))
+process.TFileService = cms.Service("TFileService", fileName = cms.string("perfTuple.root"))
 
 # for full debug:
 #process.out = cms.OutputModule("PoolOutputModule",
@@ -448,8 +448,8 @@ def addHGCalTPs():
                 src = cms.InputTag('l1tHGCalBackEndLayer2Producer:HGCalBackendLayer2Processor3DClustering'),
                 cut  = cms.string("pt > 1"),
                 name = cms.string("HGCal3DCl"),
-                emVsPionID=l1tPFClustersFromHGC3DClusters.emVsPionID,
-                emVsPUID=l1tPFClustersFromHGC3DClusters.emVsPUID,
+                #emVsPionID=l1tPFClustersFromHGC3DClusters.emVsPionID,
+                #emVsPUID=l1tPFClustersFromHGC3DClusters.emVsPUID,
                 multiClassPID=l1tPFClustersFromHGC3DClusters.multiClassPID,
                 EGIdentification = egamma_identification_histomax.clone(),
             )
