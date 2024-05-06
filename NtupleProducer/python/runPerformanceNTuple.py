@@ -12,7 +12,9 @@ process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1))
 process.MessageLogger.cerr.FwkReport.reportEvery = 1
 
 process.source = cms.Source("PoolSource",
-    fileNames = cms.untracked.vstring('file:inputs125X.root'),
+    fileNames = cms.untracked.vstring('/store/cmst3/group/l1tr/cerminar/14_0_X/fpinputs_131X/v3/TTbar_PU200/inputs131X_1.root'),
+    #fileNames = cms.untracked.vstring('file:inputs131X.root'),
+    #fileNames = cms.untracked.vstring('file:inputs125X.root'),
     inputCommands = cms.untracked.vstring("keep *", 
             "drop l1tPFClusters_*_*_*",
             "drop l1tPFTracks_*_*_*",
@@ -161,7 +163,7 @@ process.p = cms.Path(
         process.l1pfmetTable + process.l1pfmetCentralTable
         )
 process.p.associate(process.extraPFStuff)
-process.TFileService = cms.Service("TFileService", fileName = cms.string("perfTuple.root"))
+process.TFileService = cms.Service("TFileService", fileName = cms.string("Ntuples/perfTuple.root"))
 
 # for full debug:
 #process.out = cms.OutputModule("PoolOutputModule",
@@ -448,8 +450,10 @@ def addHGCalTPs():
                 name = cms.string("HGCal3DCl"),
                 emVsPionID=l1tPFClustersFromHGC3DClusters.emVsPionID,
                 emVsPUID=l1tPFClustersFromHGC3DClusters.emVsPUID,
+                multiClassPID=l1tPFClustersFromHGC3DClusters.multiClassPID,
                 EGIdentification = egamma_identification_histomax.clone(),
             )
+
     process.extraPFStuff.add(process.hgcClusterTable, process.hgcClusterExtTable)
 
 
