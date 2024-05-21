@@ -8,12 +8,13 @@ process.load('Configuration.StandardSequences.Services_cff')
 process.load("SimGeneral.HepPDTESSource.pythiapdt_cfi")
 process.load("FWCore.MessageLogger.MessageLogger_cfi")
 process.options   = cms.untracked.PSet( wantSummary = cms.untracked.bool(True), allowUnscheduled = cms.untracked.bool(False) )
-process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1))
+process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(1000))
+#process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1))
 process.MessageLogger.cerr.FwkReport.reportEvery = 1
 
 process.source = cms.Source("PoolSource",
-    fileNames = cms.untracked.vstring('/store/cmst3/group/l1tr/cerminar/14_0_X/fpinputs_131X/v3/SingleNeutrino_PU200/inputs131X_1.root'),
-    #fileNames = cms.untracked.vstring('/store/cmst3/group/l1tr/cerminar/14_0_X/fpinputs_131X/v3/TTbar_PU200/inputs131X_1.root'),
+    #fileNames = cms.untracked.vstring('/store/cmst3/group/l1tr/cerminar/14_0_X/fpinputs_131X/v3/SingleNeutrino_PU200/inputs131X_1.root'),
+    fileNames = cms.untracked.vstring('/store/cmst3/group/l1tr/cerminar/14_0_X/fpinputs_131X/v3/TTbar_PU200/inputs131X_1.root'),
     #fileNames = cms.untracked.vstring('file:inputs125X.root'),
     inputCommands = cms.untracked.vstring("keep *", 
             "drop l1tPFClusters_*_*_*",
@@ -452,9 +453,7 @@ def addHGCalTPs():
                 emVsPUID=l1tPFClustersFromHGC3DClusters.emVsPUID,
                 EGIdentification = egamma_identification_histomax.clone(),
 
-                multiClassPUID=l1tPFClustersFromHGC3DClusters.multiClassPUID,
-                multiClassPionID=l1tPFClustersFromHGC3DClusters.multiClassPionID,
-                multiClassEmID=l1tPFClustersFromHGC3DClusters.multiClassEmID,
+                multiClassPID=l1tPFClustersFromHGC3DClusters.multiClassPID
             )
 
     process.extraPFStuff.add(process.hgcClusterTable, process.hgcClusterExtTable)
