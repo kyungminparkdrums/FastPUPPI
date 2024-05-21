@@ -452,8 +452,10 @@ def addHGCalTPs():
                 emVsPionID=l1tPFClustersFromHGC3DClusters.emVsPionID,
                 emVsPUID=l1tPFClustersFromHGC3DClusters.emVsPUID,
                 EGIdentification = egamma_identification_histomax.clone(),
-
-                multiClassPID=l1tPFClustersFromHGC3DClusters.multiClassPID
+                
+                #multiClassPUID=l1tPFClustersFromHGC3DClusters.multiClassPUID,
+                #multiClassPionID=l1tPFClustersFromHGC3DClusters.multiClassPionID,
+                #multiClassEmID=l1tPFClustersFromHGC3DClusters.multiClassEmID
             )
 
     process.extraPFStuff.add(process.hgcClusterTable, process.hgcClusterExtTable)

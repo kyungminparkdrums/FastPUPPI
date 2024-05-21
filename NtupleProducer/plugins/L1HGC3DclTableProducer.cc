@@ -38,9 +38,9 @@ class L1HGC3DclTableProducer : public edm::stream::EDProducer<>  {
         l1tpf::HGC3DClusterEgID emVsPionID_;
         l1tpf::HGC3DClusterEgID emVsPUID_;
         
-	l1tpf::HGC3DClusterID multiClassPUID_;
-	l1tpf::HGC3DClusterID multiClassPionID_;
-	l1tpf::HGC3DClusterID multiClassEmID_;
+	//l1tpf::HGC3DClusterID multiClassPUID_;
+	//l1tpf::HGC3DClusterID multiClassPionID_;
+	//l1tpf::HGC3DClusterID multiClassEmID_;
 
 	std::unique_ptr<HGCalTriggerClusterIdentificationBase> id_;
 };
@@ -50,10 +50,10 @@ L1HGC3DclTableProducer::L1HGC3DclTableProducer(const edm::ParameterSet& iConfig)
     clusters_(consumes<l1t::HGCalMulticlusterBxCollection>(iConfig.getParameter<edm::InputTag>("src"))),
     sel_(iConfig.getParameter<std::string>("cut"), true),
     emVsPionID_(iConfig.getParameter<edm::ParameterSet>("emVsPionID")),
-    emVsPUID_(iConfig.getParameter<edm::ParameterSet>("emVsPUID")),
-    multiClassPUID_(iConfig.getParameter<edm::ParameterSet>("multiClassPUID")),	
-    multiClassPionID_(iConfig.getParameter<edm::ParameterSet>("multiClassPionID")),	
-    multiClassEmID_(iConfig.getParameter<edm::ParameterSet>("multiClassEmID"))	
+    emVsPUID_(iConfig.getParameter<edm::ParameterSet>("emVsPUID"))
+    //multiClassPUID_(iConfig.getParameter<edm::ParameterSet>("multiClassPUID")),	
+    //multiClassPionID_(iConfig.getParameter<edm::ParameterSet>("multiClassPionID")),	
+    //multiClassEmID_(iConfig.getParameter<edm::ParameterSet>("multiClassEmID"))	
 {
     produces<nanoaod::FlatTable>();
 
