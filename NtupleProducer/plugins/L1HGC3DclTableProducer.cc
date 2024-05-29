@@ -38,9 +38,7 @@ class L1HGC3DclTableProducer : public edm::stream::EDProducer<>  {
         l1tpf::HGC3DClusterEgID emVsPionID_;
         l1tpf::HGC3DClusterEgID emVsPUID_;
         
-	//l1tpf::HGC3DClusterID multiClassPUID_;
-	//l1tpf::HGC3DClusterID multiClassPionID_;
-	//l1tpf::HGC3DClusterID multiClassEmID_;
+	l1tpf::HGC3DClusterID multiClassPID_;
 
 	std::unique_ptr<HGCalTriggerClusterIdentificationBase> id_;
 };
@@ -50,10 +48,8 @@ L1HGC3DclTableProducer::L1HGC3DclTableProducer(const edm::ParameterSet& iConfig)
     clusters_(consumes<l1t::HGCalMulticlusterBxCollection>(iConfig.getParameter<edm::InputTag>("src"))),
     sel_(iConfig.getParameter<std::string>("cut"), true),
     emVsPionID_(iConfig.getParameter<edm::ParameterSet>("emVsPionID")),
-    emVsPUID_(iConfig.getParameter<edm::ParameterSet>("emVsPUID"))
-    //multiClassPUID_(iConfig.getParameter<edm::ParameterSet>("multiClassPUID")),	
-    //multiClassPionID_(iConfig.getParameter<edm::ParameterSet>("multiClassPionID")),	
-    //multiClassEmID_(iConfig.getParameter<edm::ParameterSet>("multiClassEmID"))	
+    emVsPUID_(iConfig.getParameter<edm::ParameterSet>("emVsPUID")),
+    multiClassPID_(iConfig.getParameter<edm::ParameterSet>("multiClassPID"))	
 {
     produces<nanoaod::FlatTable>();
 
@@ -100,8 +96,9 @@ L1HGC3DclTableProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
     pass_pfemid.resize(ncands);
 
     // Multi-classifier BDT
-    std::vector<float> vals_multiClassPUid, vals_multiClassPionid, vals_multiClassEmid;
+    std::vector<float> vals_multiClassMaxScore, vals_multiClassPUid, vals_multiClassPionid, vals_multiClassEmid;
 
+    vals_multiClassMaxScore.resize(ncands);
     vals_multiClassPUid.resize(ncands);
     vals_multiClassPionid.resize(ncands);
     vals_multiClassEmid.resize(ncands);
@@ -127,8 +124,10 @@ L1HGC3DclTableProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
         pass_puid[i] = passEmVsPU;
         pass_pfemid[i] = passPFEmVsPion;
 
-        // Multi-class BDT: 
-	// BDT score is already saved to the PFCluster object from L1Trigger/Phase2L1ParticleFlow/src/HGC3DClusterID.cc and L1Trigger/Phase2L1ParticleFlow/plugins/PFClusterProducerFromHGC3DClusters.cc
+        // Multi-class BDT
+	float maxScore = multiClassPID_.evaluate(cl3d, cluster); 
+
+        vals_multiClassMaxScore[i] = maxScore;
         vals_multiClassPUid[i] = cluster.puIDScore();
 	vals_multiClassPionid[i] = cluster.piIDScore();
 	vals_multiClassEmid[i] = cluster.emIDScore();
@@ -139,6 +138,7 @@ L1HGC3DclTableProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
     out->addColumn<bool>("pfPuIdPass", pass_puid, "");
     out->addColumn<bool>("pfEmIdPass", pass_pfemid, "");
 
+    out->addColumn<float>("multiClassMaxScore", vals_multiClassMaxScore, ""); 
     out->addColumn<float>("multiClassPuIdScore", vals_multiClassPUid, ""); 
     out->addColumn<float>("multiClassPionIdScore", vals_multiClassPionid, ""); 
     out->addColumn<float>("multiClassEmIdScore", vals_multiClassEmid, ""); 
