@@ -97,11 +97,22 @@ L1HGC3DclTableProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
 
     // Multi-classifier BDT
     std::vector<float> vals_multiClassMaxScore, vals_multiClassPUid, vals_multiClassPionid, vals_multiClassEmid;
+    std::vector<float> vals_multiClassPUid_softmax, vals_multiClassPionid_softmax, vals_multiClassEmid_softmax, vals_multiClass_sum;
+    std::vector<float> vals_multiClassPUid_sigmoid, vals_multiClassPionid_sigmoid, vals_multiClassEmid_sigmoid;
 
     vals_multiClassMaxScore.resize(ncands);
     vals_multiClassPUid.resize(ncands);
     vals_multiClassPionid.resize(ncands);
     vals_multiClassEmid.resize(ncands);
+
+    vals_multiClassPUid_softmax.resize(ncands);
+    vals_multiClassPionid_softmax.resize(ncands);
+    vals_multiClassEmid_softmax.resize(ncands);
+    vals_multiClass_sum.resize(ncands);
+
+    vals_multiClassPUid_sigmoid.resize(ncands);
+    vals_multiClassPionid_sigmoid.resize(ncands);
+    vals_multiClassEmid_sigmoid.resize(ncands);
 
     for (unsigned int i = 0; i < ncands; ++i) {
         auto cl3d = *selected[i];
@@ -131,6 +142,19 @@ L1HGC3DclTableProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
         vals_multiClassPUid[i] = cluster.puIDScore();
 	vals_multiClassPionid[i] = cluster.piIDScore();
 	vals_multiClassEmid[i] = cluster.emIDScore();
+    
+        vals_multiClassPUid_softmax[i] = std::exp(vals_multiClassPUid[i]);
+	vals_multiClassPionid_softmax[i] = std::exp(vals_multiClassPionid[i]);
+	vals_multiClassEmid_softmax[i] = std::exp(vals_multiClassEmid[i]);
+        vals_multiClass_sum[i] = vals_multiClassPUid_softmax[i] + vals_multiClassPionid_softmax[i] + vals_multiClassEmid_softmax[i];
+
+        vals_multiClassPUid_softmax[i] = vals_multiClassPUid_softmax[i] / vals_multiClass_sum[i];
+        vals_multiClassPionid_softmax[i] = vals_multiClassPionid_softmax[i] / vals_multiClass_sum[i];
+        vals_multiClassEmid_softmax[i] = vals_multiClassEmid_softmax[i] / vals_multiClass_sum[i];
+    
+        vals_multiClassPUid_sigmoid[i] = 1 / (1 + std::exp((-1)*vals_multiClassPUid[i]));
+        vals_multiClassPionid_sigmoid[i] = 1 / (1 + std::exp((-1)*vals_multiClassPionid[i]));
+        vals_multiClassEmid_sigmoid[i] = 1 / (1 + std::exp((-1)*vals_multiClassEmid[i]));
     }
     out->addColumn<float>("pfPuIdScore", vals_puid, "");
     out->addColumn<float>("pfEmIdScore", vals_pfemid, "");
@@ -142,6 +166,14 @@ L1HGC3DclTableProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
     out->addColumn<float>("multiClassPuIdScore", vals_multiClassPUid, ""); 
     out->addColumn<float>("multiClassPionIdScore", vals_multiClassPionid, ""); 
     out->addColumn<float>("multiClassEmIdScore", vals_multiClassEmid, ""); 
+
+    out->addColumn<float>("multiClassPuIdScoreSoftmax", vals_multiClassPUid_softmax, ""); 
+    out->addColumn<float>("multiClassPionIdScoreSoftmax", vals_multiClassPionid_softmax, ""); 
+    out->addColumn<float>("multiClassEmIdScoreSoftmax", vals_multiClassEmid_softmax, ""); 
+
+    out->addColumn<float>("multiClassPuIdScoreSigmoid", vals_multiClassPUid_sigmoid, ""); 
+    out->addColumn<float>("multiClassPionIdScoreSigmoid", vals_multiClassPionid_sigmoid, ""); 
+    out->addColumn<float>("multiClassEmIdScoreSigmoid", vals_multiClassEmid_sigmoid, ""); 
 
     // save to the event branches
     iEvent.put(std::move(out));
