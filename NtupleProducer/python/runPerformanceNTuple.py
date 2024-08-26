@@ -8,11 +8,13 @@ process.load('Configuration.StandardSequences.Services_cff')
 process.load("SimGeneral.HepPDTESSource.pythiapdt_cfi")
 process.load("FWCore.MessageLogger.MessageLogger_cfi")
 process.options   = cms.untracked.PSet( wantSummary = cms.untracked.bool(True), allowUnscheduled = cms.untracked.bool(False) )
-process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1))
+process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(100))
+#process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1))
 process.MessageLogger.cerr.FwkReport.reportEvery = 1
 
 process.source = cms.Source("PoolSource",
-    fileNames = cms.untracked.vstring('file:inputs125X.root'),
+    fileNames = cms.untracked.vstring('/store/cmst3/group/l1tr/cerminar/14_0_X/fpinputs_131X/v3/TTbar_PU200/inputs131X_1.root'),
+    #fileNames = cms.untracked.vstring('file:inputs125X.root'),
     inputCommands = cms.untracked.vstring("keep *", 
             "drop l1tPFClusters_*_*_*",
             "drop l1tPFTracks_*_*_*",
@@ -332,7 +334,9 @@ def addGenLep(pdgs=[11,13,22]):
                 )
             )
     genLepTableExt = cms.EDProducer("L1PFGenTableProducer",
-        src = cms.InputTag("genParticles"),)
+        src = cms.InputTag("genParticles"),
+        #genWgt = cms.InputTag("generator"),
+        )
 
     for pdgId in pdgs:
         if pdgId == 13:
@@ -382,8 +386,20 @@ def addStaMu():
     )
     process.extraPFStuff.add(process.staMuTable)
 
+def addGenWeight():
+    #print('Add Gen Weight')
+    process.addGenWeight = cms.EDProducer("GenWeightTableProducer",
+                name = cms.string("GenEvtInfo"),
+                src = cms.InputTag("generator"),
+                cut = cms.string(""),
+                doc = cms.string(""),
+                singleton = cms.bool(True), # the number of entries is 1 per event
+                extension = cms.bool(False), # this is the main table
+    )
+    process.extraPFStuff.add(process.addGenWeight)
 
 def addHGCalTPs():
+    #print('Add HGCal TPs')
     process.hgcClusterTable = cms.EDProducer("SimpleCandidateFlatTableProducer",
                 src = cms.InputTag('l1tHGCalBackEndLayer2Producer:HGCalBackendLayer2Processor3DClustering'),
                 doc = cms.string("HGCal 3D clusters"),
@@ -449,6 +465,7 @@ def addHGCalTPs():
                 emVsPionID=l1tPFClustersFromHGC3DClusters.emVsPionID,
                 emVsPUID=l1tPFClustersFromHGC3DClusters.emVsPUID,
                 EGIdentification = egamma_identification_histomax.clone(),
+                multiClassPID=l1tPFClustersFromHGC3DClusters.multiClassPID,
             )
     process.extraPFStuff.add(process.hgcClusterTable, process.hgcClusterExtTable)
 
@@ -746,3 +763,7 @@ def saveGenCands():
                                            ),
                                       )
     process.p += process.gencandTable
+
+#addHGCalTPs()
+#addAllLeps()
+#addGenWeight()
