@@ -2,7 +2,7 @@ import warnings
 
 import FWCore.ParameterSet.Config as cms
 from Configuration.StandardSequences.Eras import eras
-from PhysicsTools.NanoAOD.common_cff import Var, ExtVar 
+from PhysicsTools.NanoAOD.common_cff import Var, ExtVar
 
 process = cms.Process("RESP", eras.Phase2C17I13M9)
 
@@ -15,13 +15,16 @@ process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(100))
 process.MessageLogger.cerr.FwkReport.reportEvery = 1
 
 process.source = cms.Source("PoolSource",
-    fileNames = cms.untracked.vstring('/store/cmst3/group/l1tr/cerminar/14_0_X/fpinputs_131X/v3/TTbar_PU200/inputs131X_1.root'),
-    #fileNames = cms.untracked.vstring('file:inputs125X.root'),
-    inputCommands = cms.untracked.vstring("keep *", 
+    fileNames = cms.untracked.vstring('/store/cmst3/group/l1tr/pviscone/inputsTrackTruth/DoubleElectron_FlatPt-1To100_PU200_131Xv3a/inputs131X_38.root'),
+    #fileNames = cms.untracked.vstring('file:inputs131X.root'),
+    inputCommands = cms.untracked.vstring("keep *",
             "drop l1tPFClusters_*_*_*",
             "drop l1tPFTracks_*_*_*",
             "drop l1tPFCandidates_*_*_*",
-            "drop l1tTkPrimaryVertexs_*_*_*")
+            "drop l1tTkPrimaryVertexs_*_*_*",
+            "drop l1tTrackerMuons_*_*_*",
+            "drop *_hlt*_*_HLT",
+            "drop triggerTriggerFilterObjectWithRefs_*_*_HLT",)
 )
 
 process.load('Configuration.Geometry.GeometryExtended2026D95Reco_cff')
@@ -110,7 +113,7 @@ def monitorPerf(label, tag, makeResp=True, makeRespSplit=True, makeJets=True, ma
         for O in ["", "Charged", "Neutral", "Electron", "Muon", "ChargedHadron", "NeutralHadron", "Photon"]:
             for X in ("tot","max"):
                 process.ntuple.copyUInts.append( "%s:%sN%s%s" % (D,X,P,O))
-            process.ntuple.copyVecUInts.append( "%s:vecN%s%s" % (D,P,O))    
+            process.ntuple.copyVecUInts.append( "%s:vecN%s%s" % (D,P,O))
 
 process.ntuple = cms.EDAnalyzer("ResponseNTuplizer",
     genJets = cms.InputTag("ak4GenJetsNoNu"),
@@ -145,7 +148,7 @@ process.l1pfjetTable = cms.EDProducer("L1PFJetTableProducer",
 )
 
 process.l1pfmetTable = cms.EDProducer("L1PFMetTableProducer",
-    genMet = cms.InputTag("genMetTrue"), 
+    genMet = cms.InputTag("genMetTrue"),
     flavour = cms.string(""),
     mets = cms.PSet(
     ),
@@ -161,7 +164,7 @@ monitorPerf("L1Puppi", "l1tLayer1:Puppi")
 #process.content = cms.EDAnalyzer("EventContentAnalyzer")
 process.p = cms.Path(
         process.ntuple + #process.content +
-        process.l1pfjetTable + 
+        process.l1pfjetTable +
         process.l1pfmetTable + process.l1pfmetCentralTable
         )
 process.p.associate(process.extraPFStuff)
@@ -233,8 +236,8 @@ def addCalib():
     process.l1tPFClustersFromHGC3DClustersRaw   = process.l1tPFClustersFromHGC3DClusters.clone(corrector = "")
     process.l1tPFClustersFromHGC3DClustersEMRaw = process.l1tPFClustersFromHGC3DClustersEM.clone(corrector = "")
     process.extraPFStuff.add(
-            process.l1tPFClustersFromL1EGClustersRaw, 
-            process.l1tPFClustersFromHGC3DClustersRaw, 
+            process.l1tPFClustersFromL1EGClustersRaw,
+            process.l1tPFClustersFromHGC3DClustersRaw,
             process.l1tPFClustersFromHGC3DClustersEM,
             process.l1tPFClustersFromHGC3DClustersEMRaw)
     process.ntuple.objects.L1RawBarrelEcal   = cms.VInputTag('l1tPFClustersFromL1EGClustersRaw' )
@@ -308,7 +311,7 @@ def addTkPtCut(ptCut):
     process.l1tLayer1HGCalTkPt3 = process.l1tLayer1HGCal.clone(trkPtCut = ptCut)
     process.l1tLayer1TkPt3 = cms.EDProducer("L1TPFCandMultiMerger",
         pfProducers = cms.VInputTag(
-            cms.InputTag("l1tLayer1BarrelTkPt3"), 
+            cms.InputTag("l1tLayer1BarrelTkPt3"),
             cms.InputTag("l1tLayer1HGCalTkPt3"),
             cms.InputTag("l1tLayer1HGCalNoTK"),
             cms.InputTag("l1tLayer1HF")
@@ -320,6 +323,7 @@ def addTkPtCut(ptCut):
     monitorPerf("L1PFTkPt3", "l1tLayer1TkPt3:PF")
     monitorPerf("L1PuppiTkPt3", "l1tLayer1TkPt3:Puppi")
 
+#def addGenLep(pdgs=[11,13,22]):
 def addGen(pdgs):
     genLepTable = cms.EDProducer("SimpleCandidateFlatTableProducer",
                 src = cms.InputTag("genParticles"),
@@ -336,9 +340,7 @@ def addGen(pdgs):
                 )
             )
     genLepTableExt = cms.EDProducer("L1PFGenTableProducer",
-        src = cms.InputTag("genParticles"),
-        #genWgt = cms.InputTag("generator"),
-        )
+        src = cms.InputTag("genParticles"),)
 
     for pdgId in pdgs:
         if pdgId == 13:
@@ -394,20 +396,8 @@ def addStaMu():
     )
     process.extraPFStuff.add(process.staMuTable)
 
-def addGenWeight():
-    #print('Add Gen Weight')
-    process.addGenWeight = cms.EDProducer("GenWeightTableProducer",
-                name = cms.string("GenEvtInfo"),
-                src = cms.InputTag("generator"),
-                cut = cms.string(""),
-                doc = cms.string(""),
-                singleton = cms.bool(True), # the number of entries is 1 per event
-                extension = cms.bool(False), # this is the main table
-    )
-    process.extraPFStuff.add(process.addGenWeight)
 
 def addHGCalTPs():
-    #print('Add HGCal TPs')
     process.hgcClusterTable = cms.EDProducer("SimpleCandidateFlatTableProducer",
                 src = cms.InputTag('l1tHGCalBackEndLayer2Producer:HGCalBackendLayer2Processor3DClustering'),
                 doc = cms.string("HGCal 3D clusters"),
@@ -526,7 +516,7 @@ def addPFLep(pdgs=[11,13,22],opts=["PF","Puppi"], postfix=""):
                 setattr(process, w+"Ph"+postfix+"Table", phTable)
                 process.extraPFStuff.add(phTable)
 
-def addStaEG(postfix=""):        
+def addStaEG(postfix=""):
     def getStaEgTables(slice, postfix, inputtag):
         staEgTable = cms.EDProducer("SimpleCandidateFlatTableProducer",
                         name = cms.string("EGSta"+slice+postfix),
@@ -553,7 +543,7 @@ def addStaEG(postfix=""):
     process.extraPFStuff.add(staEgEEEmuTable)
 
 
-def addTkEG(doL1=False, doL2=True, postfix=""):        
+def addTkEG(doL1=False, doL2=True, postfix=""):
     def getTkEgTables(slice, postfix, tkem_inputtag, tkele_inputtag):
         tkEmTable = cms.EDProducer("SimpleCandidateFlatTableProducer",
                         name = cms.string("TkEm"+slice+postfix),
@@ -587,19 +577,20 @@ def addTkEG(doL1=False, doL2=True, postfix=""):
         tkEleTable.variables.caloEta = Var("egCaloPtr.eta", float,precision=8)
         tkEleTable.variables.caloPhi = Var("egCaloPtr.phi", float,precision=8)
         return tkEmTable, tkEleTable
-                                   
-    if doL1:    
+
+    if doL1:
         for w in "EB","EE":
             tkEmTable, tkEleTable = getTkEgTables(w, postfix, f"l1tLayer1EG{postfix}:L1TkEm{w}", f'l1tLayer1EG{postfix}:L1TkEle{w}')
             setattr(process, "TkEm%s%sTable" % (w,postfix), tkEmTable)
             setattr(process, "TkEle%s%sTable" % (w,postfix), tkEleTable)
             process.extraPFStuff.add(tkEmTable,tkEleTable)
 
-    if doL2:    
+    if doL2:
         tkEmTable, tkEleTable = getTkEgTables('L2', postfix, f"l1tLayer2EG:L1CtTkEm", f'l1tLayer2EG:L1CtTkElectron')
         setattr(process, "TkEmL2%sTable" % (postfix), tkEmTable)
         setattr(process, "TkEleL2%sTable" % (postfix), tkEleTable)
         process.extraPFStuff.add(tkEmTable,tkEleTable)
+
 
 def addDecodedTk(regs=['HGCal','Barrel'], truth=False):
     for reg in regs:
@@ -643,6 +634,7 @@ def addDecodedTk(regs=['HGCal','Barrel'], truth=False):
             )
             setattr(process, f'decTk{reg}ExtTable', decTkTableExt)
             process.extraPFStuff.add(decTkTableExt)
+
 
 
 def addEGCrystalClusters() -> None:
@@ -700,6 +692,8 @@ def addEGCrystalClusters() -> None:
             setattr(process, 'PFClusterExtTable', PFClusterExt[0])
             process.extraPFStuff.add(PFClusterExt[0])
 
+
+
 def addAllLeps():
     addGenLep()
     addStaMu()
@@ -707,10 +701,23 @@ def addAllLeps():
     addTkEG()
     addEGCrystalClusters()
 
+def addGenWeight():
+    #print('Add Gen Weight')
+    process.addGenWeight = cms.EDProducer("GenWeightTableProducer",
+                name = cms.string("GenEvtInfo"),
+                src = cms.InputTag("generator"),
+                cut = cms.string(""),
+                doc = cms.string(""),
+                singleton = cms.bool(True), # the number of entries is 1 per event
+                extension = cms.bool(False), # this is the main table
+    )
+    process.extraPFStuff.add(process.addGenWeight)
+
+
 def goGun(calib=1):
     process.ntuple.isParticleGun = True
     respOnly()
-    if calib: 
+    if calib:
         addCalib()
 def goMT(nthreads=2):
     process.options.numberOfThreads = cms.untracked.uint32(nthreads)
@@ -753,7 +760,7 @@ def addEDMOutput():
 
 if False:
     #process.source.fileNames  = [ '/store/cmst3/group/l1tr/gpetrucc/11_1_0/NewInputs110X/110121.done/TTbar_PU200/inputs110X_%d.root' % i for i in (1,)] #3,7,8,9) ]
-    process.source.fileNames  = [ '/store/cmst3/group/l1tr/gpetrucc/12_3_X/NewInputs110X/220322/TTbar_PU200/inputs110X_%d.root' % i for i in (1,)] 
+    process.source.fileNames  = [ '/store/cmst3/group/l1tr/gpetrucc/12_3_X/NewInputs110X/220322/TTbar_PU200/inputs110X_%d.root' % i for i in (1,)]
     #process.source.fileNames  = [ '/store/cmst3/group/l1tr/gpetrucc/11_1_0/NewInputs110X/110121.done/DYToLL_PU200/inputs110X_%d.root' % i for i in (1,)] #3,7,8,9) ]
     #goMT(4)
     #oldInputs_11_1_6()
@@ -799,7 +806,6 @@ def saveGenCands():
                                       )
     process.p += process.gencandTable
 
-addHGCalTPs()
-addAllLeps()
-addDecodedTk(truth=True)
-#addGenWeight()
+#addHGCalTPs()
+#addAllLeps()
+#addDecodedTk(truth=True)
