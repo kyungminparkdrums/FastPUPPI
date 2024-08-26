@@ -318,7 +318,7 @@ def addTkPtCut(ptCut):
     monitorPerf("L1PFTkPt3", "l1tLayer1TkPt3:PF")
     monitorPerf("L1PuppiTkPt3", "l1tLayer1TkPt3:Puppi")
 
-def addGenLep(pdgs=[11,13,22]):
+def addGen(pdgs):
     genLepTable = cms.EDProducer("SimpleCandidateFlatTableProducer",
                 src = cms.InputTag("genParticles"),
                 doc = cms.string("gen leptons"),
@@ -366,6 +366,12 @@ def addGenLep(pdgs=[11,13,22]):
                         name = process.genPhTable.name
             )
             process.extraPFStuff.add(process.genPhTable, process.genPhExtTable)
+
+def addGenPi(pdgs=[211]):
+    addGen(pdgs)
+
+def addGenLep(pdgs=[11,13,22]):
+    addGen(pdgs)
 
 
 def addStaMu():
