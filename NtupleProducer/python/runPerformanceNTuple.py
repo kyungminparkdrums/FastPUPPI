@@ -1,3 +1,5 @@
+import warnings
+
 import FWCore.ParameterSet.Config as cms
 from Configuration.StandardSequences.Eras import eras
 from PhysicsTools.NanoAOD.common_cff import Var, ExtVar 
@@ -599,8 +601,7 @@ def addTkEG(doL1=False, doL2=True, postfix=""):
         setattr(process, "TkEleL2%sTable" % (postfix), tkEleTable)
         process.extraPFStuff.add(tkEmTable,tkEleTable)
 
-
-def addDecodedTk(regs=['HGCal','Barrel']):        
+def addDecodedTk(regs=['HGCal','Barrel'], truth=False):
     for reg in regs:
         decTkTable = cms.EDProducer("SimpleCandidateFlatTableProducer",
                         name = cms.string("DecTk"+reg),
@@ -627,6 +628,21 @@ def addDecodedTk(regs=['HGCal','Barrel']):
         setattr(process, f"decTk{reg}Table", decTkTable)
         process.extraPFStuff.add(decTkTable)
 
+        if truth:
+            warnings.warn(
+                "To make it work you have to change the digiSimLinks input tag of TTClusterAssociatorFromPixelDigis in SimTracker/TrackTriggerAssociation/python/TTClusterAssociation_cfi.py. \nIt must be ('simSiPixelDigis','Tracker'), not ('mix','Tracker')"
+            )
+            warnings.warn('Truth track must be runned on RAW dataset')
+            decTkTableExt = cms.EDProducer(
+                'L1DecTkTruthTableProducer',
+                name=cms.string('DecTk' + reg),
+                src=cms.InputTag('l1tLayer1' + reg, 'DecodedTK'),
+                MCTruthTrackInputTag=cms.InputTag(
+                    'TTTrackAssociatorFromPixelDigis', 'Level1TTTracks'
+                ),
+            )
+            setattr(process, f'decTk{reg}ExtTable', decTkTableExt)
+            process.extraPFStuff.add(decTkTableExt)
 
 
 def addEGCrystalClusters() -> None:
@@ -643,24 +659,24 @@ def addEGCrystalClusters() -> None:
                                             pt  = Var("pt",  float,precision=8),
                                             eta  = Var("eta", float,precision=8),
                                             phi = Var("phi", float,precision=8),
-                                            calibratedPt = Var("calibratedPt", float,precision=8),
-                                            hovere = Var("hovere", float,precision=8),
-                                            puCorrPt = Var("puCorrPt", float,precision=8),
-                                            bremStrength = Var("bremStrength", float,precision=8),
-                                            e2x2 = Var("e2x2", float,precision=8),
                                             e2x5 = Var("e2x5", float,precision=8),
-                                            e3x5 = Var("e3x5", float,precision=8),
                                             e5x5 = Var("e5x5", float,precision=8),
-                                            standaloneWP = Var("standaloneWP", int,precision=8),
-                                            electronWP98 = Var("electronWP98", int,precision=8),
-                                            photonWP80 = Var("photonWP80", int,precision=8),
-                                            electronWP90 = Var("electronWP90", int,precision=8),
-                                            looseL1TkMatchWP = Var("looseL1TkMatchWP", int,precision=8),
-                                            stage2effMatch= Var("stage2effMatch", int,precision=8),
+                                            #calibratedPt = Var("calibratedPt", float,precision=8),
+                                            #hovere = Var("hovere", float,precision=8),
+                                            #puCorrPt = Var("puCorrPt", float,precision=8),
+                                            #bremStrength = Var("bremStrength", float,precision=8),
+                                            #e2x2 = Var("e2x2", float,precision=8),
+                                            #e3x5 = Var("e3x5", float,precision=8),
+                                            #standaloneWP = Var("standaloneWP", int,precision=8),
+                                            #electronWP98 = Var("electronWP98", int,precision=8),
+                                            #photonWP80 = Var("photonWP80", int,precision=8),
+                                            #electronWP90 = Var("electronWP90", int,precision=8),
+                                            #looseL1TkMatchWP = Var("looseL1TkMatchWP", int,precision=8),
+                                            #stage2effMatch= Var("stage2effMatch", int,precision=8),
                                         )
             )
         return CrystalClustersTable
-    
+
     nameSrcDictList=[
         {"name":"CaloEGammaCrystalClustersRCT", "src":"l1tPhase2L1CaloEGammaEmulator:RCTClusters"},
         {"name":"CaloEGammaCrystalClustersGCT", "src":"l1tPhase2L1CaloEGammaEmulator:GCTClusters"},
@@ -670,6 +686,19 @@ def addEGCrystalClusters() -> None:
         setattr(process, f"{nameSrcDict['name']}Table", flatTable)
         process.extraPFStuff.add(flatTable)
 
+        if nameSrcDict["name"]=="CaloEGammaCrystalClustersGCT":
+            PFClusterExt=cms.EDProducer(
+                "L1PFClusterDigiParser",
+                name=cms.string("CaloEGammaCrystalClustersGCT"),
+                src=cms.InputTag("l1tPFClustersFromL1EGClusters:all"),
+                cut = cms.string(""),
+                doc = cms.string(""),
+                singleton = cms.bool(False), # the number of entries is variable
+                extension = cms.bool(True),
+                ),
+
+            setattr(process, 'PFClusterExtTable', PFClusterExt[0])
+            process.extraPFStuff.add(PFClusterExt[0])
 
 def addAllLeps():
     addGenLep()
@@ -770,6 +799,7 @@ def saveGenCands():
                                       )
     process.p += process.gencandTable
 
-#addHGCalTPs()
-#addAllLeps()
+addHGCalTPs()
+addAllLeps()
+addDecodedTk(truth=True)
 #addGenWeight()
