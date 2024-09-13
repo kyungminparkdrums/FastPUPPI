@@ -76,7 +76,7 @@ L1HGC3DclTableProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
 
     std::vector<const l1t::HGCalMulticluster *> selected;
 
-
+    //std::cout << "HGC Produce!" << std::endl;
     for (const l1t::HGCalMulticluster &cl : *clusters)
         if(sel_(cl)) selected.push_back(&cl);
 
@@ -123,9 +123,8 @@ L1HGC3DclTableProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
         pass_pfemid[i] = passPFEmVsPion;
 
 	// Multi-class BDT
-	float maxScore = multiClassPID_.evaluate(cl3d, cluster);
+	multiClassPID_.evaluate(cl3d, cluster);
 
-        vals_multiClassMaxScore[i] = maxScore;
         vals_multiClassPUid[i] = cluster.puIDScore();
  	vals_multiClassPionid[i] = cluster.piIDScore();
 	vals_multiClassEmid[i] = cluster.emIDScore();
@@ -137,7 +136,6 @@ L1HGC3DclTableProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetu
     out->addColumn<bool>("pfPuIdPass", pass_puid, "");
     out->addColumn<bool>("pfEmIdPass", pass_pfemid, "");
 
-    out->addColumn<float>("multiClassMaxScore", vals_multiClassMaxScore, ""); 
     out->addColumn<float>("multiClassPuIdScore", vals_multiClassPUid, ""); 
     out->addColumn<float>("multiClassPionIdScore", vals_multiClassPionid, ""); 
     out->addColumn<float>("multiClassEmIdScore", vals_multiClassEmid, ""); 
