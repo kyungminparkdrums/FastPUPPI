@@ -10,13 +10,13 @@ process.load('Configuration.StandardSequences.Services_cff')
 process.load("SimGeneral.HepPDTESSource.pythiapdt_cfi")
 process.load("FWCore.MessageLogger.MessageLogger_cfi")
 process.options   = cms.untracked.PSet( wantSummary = cms.untracked.bool(True), allowUnscheduled = cms.untracked.bool(False) )
-process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(100))
-#process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1))
+#process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(100))
+process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1))
 process.MessageLogger.cerr.FwkReport.reportEvery = 1
 
 process.source = cms.Source("PoolSource",
-    fileNames = cms.untracked.vstring('/store/cmst3/group/l1tr/pviscone/inputsTrackTruth/DoubleElectron_FlatPt-1To100_PU200_131Xv3a/inputs131X_38.root'),
-    #fileNames = cms.untracked.vstring('file:inputs131X.root'),
+    #fileNames = cms.untracked.vstring('/store/cmst3/group/l1tr/pviscone/inputsTrackTruth/DoubleElectron_FlatPt-1To100_PU200_131Xv3a/inputs131X_38.root'),
+    fileNames = cms.untracked.vstring('file:inputs131X.root'),
     inputCommands = cms.untracked.vstring("keep *",
             "drop l1tPFClusters_*_*_*",
             "drop l1tPFTracks_*_*_*",
@@ -370,6 +370,15 @@ def addGen(pdgs):
                         name = process.genPhTable.name
             )
             process.extraPFStuff.add(process.genPhTable, process.genPhExtTable)
+        elif pdgId == 211:
+            process.genPiTable = genLepTable.clone(
+                        cut  = cms.string("abs(pdgId) == %d && status == 1 && pt > 2" % pdgId),
+                        name = cms.string("GenPi"))
+            process.genPiExtTable = genLepTableExt.clone(
+                        cut = process.genPiTable.cut,
+                        name = process.genPiTable.name
+            )
+            process.extraPFStuff.add(process.genPiTable, process.genPiExtTable)
 
 def addGenPi(pdgs=[211]):
     addGen(pdgs)
