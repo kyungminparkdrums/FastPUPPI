@@ -12,7 +12,9 @@ process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1))
 process.MessageLogger.cerr.FwkReport.reportEvery = 1
 
 process.source = cms.Source("PoolSource",
-    fileNames = cms.untracked.vstring('file:inputs125X.root'),
+    #fileNames = cms.untracked.vstring('/store/cmst3/group/l1tr/cerminar/l1teg/fpinputs/HAHM_ZdToEE_m15_pu200/INFP/131Xv3c/inputs131X_10577000_17.root'),
+    #fileNames = cms.untracked.vstring('/store/cmst3/group/l1tr/cerminar/14_0_X/fpinputs_131X/v3/TTbar_PU200/inputs131X_1.root'),
+    fileNames = cms.untracked.vstring('file:inputs131X.root'),
     inputCommands = cms.untracked.vstring("keep *", 
             "drop l1tPFClusters_*_*_*",
             "drop l1tPFTracks_*_*_*",
@@ -746,3 +748,4 @@ def saveGenCands():
                                            ),
                                       )
     process.p += process.gencandTable
+

@@ -194,8 +194,8 @@ whats = WHATS + [
         ("Puppi",      "L1Puppi$",    ROOT.kRed+1, 20, 1.1),
     ]),
     ('l1pfpu_metnoref',[
-        ("Calo",       "L1Calo$",     ROOT.kViolet+1, 21, 1.5),
-        ("TK #Deltaz", "L1TKV5$",     ROOT.kGreen+2, 34, 1.2),
+    #    ("Calo",       "L1Calo$",     ROOT.kViolet+1, 21, 1.5),
+    #    ("TK #Deltaz", "L1TKV5$",     ROOT.kGreen+2, 34, 1.2),
         ("Puppi",      "L1Puppi$",    ROOT.kRed+1, 20, 1.1),
     ]),
     ('l1pfpu_metrefonly',[
