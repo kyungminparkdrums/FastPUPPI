@@ -49,11 +49,15 @@ process.l1tPhase2L1CaloEGammaEmulator = l1tPhase2L1CaloEGammaEmulator.clone()
 from L1Trigger.Phase2L1ParticleFlow.L1NNTauProducer_cff import l1tNNTauProducerPuppi
 process.l1tNNTauProducerPuppi = l1tNNTauProducerPuppi.clone()
 
+from L1Trigger.Phase2L1ParticleFlow.l1tMETPFProducer_cfi import l1tMETPFProducer
+process.l1tMETPFProducer = l1tMETPFProducer.clone()
+
 process.extraPFStuff = cms.Task(
         process.l1tPhase2L1CaloEGammaEmulator,
         process.l1tSAMuonsGmt,
         process.l1tGTTInputProducer,
         process.l1tTrackSelectionProducer,
+        process.l1tMETPFProducer,
         process.l1tVertexFinderEmulator,
         process.L1TLayer1TaskInputsTask,
         process.L1TLayer1Task,
@@ -793,6 +797,9 @@ def saveCands():
     monitorPerf("L1PF", "l1tLayer1:PF", saveCands=True)
     monitorPerf("L1Puppi", "l1tLayer1:Puppi", saveCands=True)
     process.p += process.l1pfcandTable
+
+def addPuppiMET():
+    process.l1pfmetTable.mets.emuMET = cms.InputTag("l1tMETPFProducer","")
 
 def saveGenCands():
     process.gencandTable = cms.EDProducer("L1PFCandTableProducer",
