@@ -195,7 +195,8 @@ whats = WHATS + [
     ]),
     ('l1pfpu_metnoref',[
         ("Calo",       "L1Calo$",     ROOT.kViolet+1, 21, 1.5),
-        ("TK #Deltaz", "L1TKV5$",     ROOT.kGreen+2, 34, 1.2),
+        ("PF",        "L1PF",          ROOT.kOrange+7, 24, 1.5),
+        #("TK #Deltaz", "L1TKV5$",     ROOT.kGreen+2, 34, 1.2),
         ("Puppi",      "L1Puppi$",    ROOT.kRed+1, 20, 1.1),
     ]),
     ('l1pfpu_metrefonly',[
@@ -205,7 +206,9 @@ whats = WHATS + [
     ('l1pfpu_jetnoref',[
         ("Calo",       "L1Calo$",    ROOT.kViolet+1, 21, 1.5),
         ("TK #Deltaz", "L1TKV5$",    ROOT.kGreen+2, 34, 1.2),
+        ("PF",        "L1PF",          ROOT.kOrange+7, 24, 1.5),
         ("ak4Puppi",   "L1Puppi$",   ROOT.kRed+1, 20, 1.1),
+        ("sc4", "scPuppiCorr$",    ROOT.kRed+2, 20, 0.9),
     ]),
     ('l1pfpu_scjets',[
         ("ak4",         "L1Puppi$",        ROOT.kViolet+1, 21, 1.5),
