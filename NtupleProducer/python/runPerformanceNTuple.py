@@ -49,11 +49,15 @@ process.l1tPhase2L1CaloEGammaEmulator = l1tPhase2L1CaloEGammaEmulator.clone()
 from L1Trigger.Phase2L1ParticleFlow.L1NNTauProducer_cff import l1tNNTauProducerPuppi
 process.l1tNNTauProducerPuppi = l1tNNTauProducerPuppi.clone()
 
+from L1Trigger.Phase2L1ParticleFlow.l1tMETPFProducer_cfi import l1tMETPFProducer
+process.l1tMETPFProducer = l1tMETPFProducer.clone()
+
 process.extraPFStuff = cms.Task(
         process.l1tPhase2L1CaloEGammaEmulator,
         process.l1tSAMuonsGmt,
         process.l1tGTTInputProducer,
         process.l1tTrackSelectionProducer,
+        process.l1tMETPFProducer,
         process.l1tVertexFinderEmulator,
         process.L1TLayer1TaskInputsTask,
         process.L1TLayer1Task,
@@ -62,11 +66,13 @@ process.extraPFStuff = cms.Task(
 process.centralGen = cms.EDFilter("CandPtrSelector", src = cms.InputTag("genParticlesForMETAllVisible"), cut = cms.string("abs(eta) < 2.4"))
 process.barrelGen = cms.EDFilter("CandPtrSelector", src = cms.InputTag("genParticlesForMETAllVisible"), cut = cms.string("abs(eta) < 1.5"))
 process.genMetCentralTrue = process.genMetTrue.clone(src = cms.InputTag("centralGen"))
+process.genMetBarrelTrue = process.genMetTrue.clone(src = cms.InputTag("barrelGen"))
 process.extraPFStuff.add(
     process.genParticlesForMETAllVisible,
     process.centralGen,
     process.barrelGen,
-    process.genMetCentralTrue
+    process.genMetCentralTrue,
+    process.genMetBarrelTrue
 )
 
 def monitorPerf(label, tag, makeResp=True, makeRespSplit=True, makeJets=True, makeMET=True, makeCentralMET=True,
@@ -154,6 +160,7 @@ process.l1pfmetTable = cms.EDProducer("L1PFMetTableProducer",
     ),
 )
 process.l1pfmetCentralTable = process.l1pfmetTable.clone(genMet = "genMetCentralTrue", flavour = "Central")
+process.l1pfmetBarrelTable = process.l1pfmetTable.clone(genMet = "genMetBarrelTrue", flavour = "Barrel")
 
 monitorPerf("L1Calo", "l1tLayer1:Calo")
 monitorPerf("L1TK",   "l1tLayer1:TK")
@@ -806,3 +813,6 @@ def saveGenCands():
                                            ),
                                       )
     process.p += process.gencandTable
+
+def addPuppiMET():
+    process.l1pfmetTable.mets.emuMET = cms.InputTag("l1tMETPFProducer","")
