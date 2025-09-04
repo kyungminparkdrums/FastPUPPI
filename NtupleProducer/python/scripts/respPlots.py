@@ -35,7 +35,8 @@ def doRespEta(oname, tree, name, expr, cut, mcpt="mc_pt", maxEntries=999999999):
         return doRespEtaProf(oname, tree, name, expr, cut, mcpt=mcpt, maxEntries=maxEntries)
     return doRespEtaMedian(oname, tree, name, expr, cut, mcpt=mcpt, maxEntries=maxEntries)
 def doRespEtaMedian(oname, tree, name, expr, cut, mcpt="mc_pt", etabins=25, etamax=5.0, maxEntries=999999999):
-    etabins = [ (i+1)*0.1 for i in range(32) ] + [ 3.4 + 0.2*i for i in range((50-34)/2+1) ]
+    #etabins = [ (i+1)*0.1 for i in range(32) ] + [ 3.4 + 0.2*i for i in range((50-34)/2+1) ]
+    etabins = [ (i+1)*0.1 for i in range(32) ] + [ 3.4 + 0.2*i for i in range(int((50-34)/2+1)) ]
     etabins = [ e for e in etabins if e <= etamax ]
     ys = [[] for ieta in etabins]
     npoints = tree.Draw("("+expr+")/"+mcpt+":abs(mc_eta)", cut, "", maxEntries);

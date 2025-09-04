@@ -823,7 +823,12 @@ def saveCands():
                                            moreVariables = cms.PSet(
                                                puppiWeight = cms.string("puppiWeight"),
                                                pdgId = cms.string("pdgId"),
-                                               charge = cms.string("charge")
+                                               charge = cms.string("charge"),
+                                               dxy = cms.string("dxy"),
+                                               z0 = cms.string("z0"),
+                                               caloEta = cms.string("caloEta"),
+                                               caloPhi = cms.string("caloPhi"),
+                                               hwTkQuality = cms.string("hwTkQuality")
                                            ),
                                        )
     monitorPerf("L1PF", "l1tLayer1:PF", saveCands=True)
@@ -838,7 +843,13 @@ def saveGenCands():
                                            ),
                                            moreVariables = cms.PSet(
                                                pdgId = cms.string("pdgId"),
-                                               charge = cms.string("charge")
+                                               charge = cms.string("charge"),
+                                               #dxy = cms.string("dxy"),
+                                               vz = cms.string("vz"),
+                                               status = cms.string("status"),
+                                               prompt  = cms.string("2*statusFlags().isPrompt() + statusFlags().isDirectPromptTauDecayProduct()"),
+                                               #caloEta = cms.string("caloEta()"),
+                                               #caloPhi = cms.string("caloPhi()")
                                            ),
                                       )
     process.p += process.gencandTable
