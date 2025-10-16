@@ -20,6 +20,8 @@
 
 #include <algorithm>
 
+#include "L1Trigger/Phase2L1ParticleFlow/interface/L1TPFUtils.h"
+
 class L1PFCandTableProducer : public edm::global::EDProducer<>  {
     public:
         explicit L1PFCandTableProducer(const edm::ParameterSet&);
@@ -114,7 +116,24 @@ L1PFCandTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const edm::
             }
             out->addColumn<float>(evar.name, vals_pt, evar.expr);
         }
-        
+
+        // Add caloeta, calophi
+	const float bz = 3.8112;
+
+        std::vector<float> vals_caloeta, vals_calophi;
+        vals_caloeta.resize(ncands);
+        vals_calophi.resize(ncands);
+
+        for (unsigned int i = 0; i < ncands; ++i) {
+            math::XYZTLorentzVector vertex(selected[i]->vx(),selected[i]->vy(),selected[i]->vz(),0.);
+            auto caloetaphi = l1tpf::propagateToCalo(selected[i]->p4(),vertex,selected[i]->charge(),bz);
+            vals_caloeta[i] = caloetaphi.first;
+            vals_calophi[i] = caloetaphi.second;
+        }
+
+        out->addColumn<float>("caloeta", vals_caloeta, "");
+        out->addColumn<float>("calophi", vals_calophi, "");
+
         // save to the event branches
         iEvent.put(std::move(out), cands.coll+"Cands");
 
