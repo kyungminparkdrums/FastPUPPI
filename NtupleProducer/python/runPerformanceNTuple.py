@@ -16,7 +16,8 @@ process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1))
 process.MessageLogger.cerr.FwkReport.reportEvery = 1
 
 process.source = cms.Source("PoolSource",
-    fileNames = cms.untracked.vstring('file:inputs125X.root'),
+    fileNames = cms.untracked.vstring('file:/eos/cms/store/cmst3/group/l1tr/FastPUPPI/14_2_X/fpinputs_140X/v0/TT_PU200/inputs140X_30.root'),
+    #fileNames = cms.untracked.vstring('file:inputs125X.root'),
     inputCommands = cms.untracked.vstring("keep *", 
             "drop l1tPFClusters_*_*_*",
             "drop l1tPFTracks_*_*_*",
@@ -823,7 +824,16 @@ def saveCands():
                                            moreVariables = cms.PSet(
                                                puppiWeight = cms.string("puppiWeight"),
                                                pdgId = cms.string("pdgId"),
-                                               charge = cms.string("charge")
+                                               charge = cms.string("charge"),
+                                               dxy = cms.string("dxy"),
+                                               z0 = cms.string("z0"),
+                                               caloEta = cms.string("caloEta"),
+                                               caloPhi = cms.string("caloPhi"),
+                                               hwTkQuality = cms.string("hwTkQuality"),
+                                               hgcIdPu = cms.string("idProbPu"),
+                                               hgcIdEm = cms.string("idProbEm"),
+                                               hgcIdPi = cms.string("idProbPi"),
+                                               nnVtxScore = cms.string("nnVtxScore"),
                                            ),
                                        )
     monitorPerf("L1PF", "l1tLayer1:PF", saveCands=True)
@@ -838,7 +848,11 @@ def saveGenCands():
                                            ),
                                            moreVariables = cms.PSet(
                                                pdgId = cms.string("pdgId"),
-                                               charge = cms.string("charge")
+                                               charge = cms.string("charge"),
+                                               vz = cms.string("vz"),
+                                               status = cms.string("status"),
+                                               prompt  = cms.string("2*statusFlags().isPrompt() + statusFlags().isDirectPromptTauDecayProduct()")
                                            ),
                                       )
     process.p += process.gencandTable
+
