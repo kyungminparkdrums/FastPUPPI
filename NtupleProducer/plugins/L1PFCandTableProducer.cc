@@ -146,13 +146,27 @@ L1PFCandTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const edm::
 	const float bz = 3.8112;
 
         std::vector<float> vals_caloeta, vals_calophi;
-        std::vector<float> vals_genPtSum, vals_genNeutralPtSum, vals_recoPtSum, vals_genRecoPtRatio;
-        vals_caloeta.resize(ncands);
-        vals_calophi.resize(ncands);
+        std::vector<float> vals_isGenMatched;
+        std::vector<float> vals_genPtSum, vals_genNeutralPtSum, vals_genChargedPtSum, vals_genChargedPtHadSum, vals_genNeutralPtHadSum;
+	std::vector<float> vals_recoPtSum, vals_recoNeutralPtSum, vals_recoChargedPtSum, vals_recoChargedPtHadSum, vals_recoNeutralPtHadSum, vals_genRecoPtRatio;
         
-	vals_genNeutralPtSum.resize(ncands);
+	vals_caloeta.resize(ncands);
+        vals_calophi.resize(ncands);
+       
+	vals_isGenMatched.resize(ncands);
+
 	vals_genPtSum.resize(ncands);
+	vals_genNeutralPtSum.resize(ncands);
+	vals_genChargedPtSum.resize(ncands);
+	vals_genChargedPtHadSum.resize(ncands);
+	vals_genNeutralPtHadSum.resize(ncands);
+	
 	vals_recoPtSum.resize(ncands);
+	vals_recoNeutralPtSum.resize(ncands);
+	vals_recoChargedPtSum.resize(ncands);
+	vals_recoChargedPtHadSum.resize(ncands);
+	vals_recoNeutralPtHadSum.resize(ncands);
+	
 	vals_genRecoPtRatio.resize(ncands);
 
         for (unsigned int i = 0; i < ncands; ++i) {
@@ -166,10 +180,20 @@ L1PFCandTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const edm::
 
             double sum_pT_gen = 0;
             double sum_pT_genNeutral = 0;
-            double sum_pT_reco = 0;
-
+            double sum_pT_genCharged = 0;
+            double sum_pT_genChargedHad = 0;
+            double sum_pT_genNeutralHad = 0;
+            
+	    double sum_pT_reco = 0;
+            double sum_pT_recoNeutral = 0;
+            double sum_pT_recoCharged = 0;
+            double sum_pT_recoChargedHad = 0;
+            double sum_pT_recoNeutralHad = 0;
+ 
 	    // pT sum around a cone
             for (unsigned int j = 0; j < ncands; ++j) {
+		if (i==j) continue;
+
                 math::XYZTLorentzVector vertex2(selected[j]->vx(),selected[j]->vy(),selected[j]->vz(),0.);
                 auto caloetaphi2 = l1tpf::propagateToCalo(selected[j]->p4(),vertex2,selected[j]->charge(),bz);
                 double eta2 = (selected[j]->charge() == 0) ? caloetaphi2.first : selected[j]->eta();
@@ -178,9 +202,21 @@ L1PFCandTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const edm::
                 double deltaR = calculate_deltaR(eta1, phi1, eta2, phi2);
 
                 if (deltaR < 0.2) sum_pT_reco += selected[j]->pt();
-            }
+                if ((deltaR < 0.2) & (selected[j]->charge() == 0)) sum_pT_recoNeutral += selected[j]->pt();
+                if ((deltaR < 0.2) & (selected[j]->charge() != 0)) sum_pT_recoCharged += selected[j]->pt();
+                if ((deltaR < 0.2) & (abs(selected[j]->pdgId()) == 211)) sum_pT_recoChargedHad += selected[j]->pt();
+                if ((deltaR < 0.2) & (abs(selected[j]->pdgId()) == 130)) sum_pT_recoNeutralHad += selected[j]->pt();
+	    }
+
+            sum_pT_reco += selected[i]->pt();
+	    sum_pT_recoNeutral += selected[i]->pt();
+	    sum_pT_recoCharged += selected[i]->pt();
+	    sum_pT_recoChargedHad += selected[i]->pt();
+	    sum_pT_recoNeutralHad += selected[i]->pt();
 
 	    // pT sum around a gen cone
+	    double min_dR = 999;
+	    int idx_min_dR = -1;
             for (unsigned int k = 0; k < nGenCands; ++k) {
                 math::XYZTLorentzVector vertex3(gen_selected[k]->vx(),gen_selected[k]->vy(),gen_selected[k]->vz(),0.);
                 auto caloetaphi3 = l1tpf::propagateToCalo(gen_selected[k]->p4(),vertex3,gen_selected[k]->charge(),bz);
@@ -189,20 +225,55 @@ L1PFCandTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const edm::
 
                 double deltaR = calculate_deltaR(eta1, phi1, eta3, phi3);
 
+                if (deltaR <= min_dR) {
+                    min_dR = deltaR;
+		    idx_min_dR = k;
+	        }
+
                 if (deltaR < 0.2) sum_pT_gen += gen_selected[k]->pt();
                 if ((deltaR < 0.2) & (gen_selected[k]->charge() == 0)) sum_pT_genNeutral += gen_selected[k]->pt();
+                if ((deltaR < 0.2) & (gen_selected[k]->charge() != 0)) sum_pT_genCharged += gen_selected[k]->pt();
+                if ((deltaR < 0.2) & (abs(gen_selected[k]->pdgId()) == 211)) sum_pT_genChargedHad += gen_selected[k]->pt();
+                if ((deltaR < 0.2) & (abs(gen_selected[k]->pdgId()) == 130)) sum_pT_genNeutralHad += gen_selected[k]->pt();
             }
 
-            vals_genNeutralPtSum[i] = sum_pT_genNeutral;
+            if (min_dR < 0.2) {
+                sum_pT_genCharged += gen_selected[idx_min_dR]->pt();
+                sum_pT_genChargedHad += gen_selected[idx_min_dR]->pt();
+            }
+
+            vals_isGenMatched[i] = (min_dR < 0.1) ? 1 : 0;
+
             vals_genPtSum[i] = sum_pT_gen;
-            vals_recoPtSum[i] = sum_pT_reco;
-            vals_genRecoPtRatio[i] = sum_pT_gen / sum_pT_reco;
+            vals_genNeutralPtSum[i] = sum_pT_genNeutral;
+            vals_genChargedPtSum[i] = sum_pT_genCharged;
+            vals_genChargedPtHadSum[i] = sum_pT_genChargedHad;
+            vals_genNeutralPtHadSum[i] = sum_pT_genNeutralHad;
+
+	    vals_recoPtSum[i] = sum_pT_reco;
+            vals_recoNeutralPtSum[i] = sum_pT_recoNeutral;
+            vals_recoChargedPtSum[i] = sum_pT_recoCharged;
+            vals_recoChargedPtHadSum[i] = sum_pT_recoChargedHad;
+            vals_recoNeutralPtHadSum[i] = sum_pT_recoNeutralHad;
+	    
+	    vals_genRecoPtRatio[i] = sum_pT_gen / sum_pT_reco;
         }
 
         out->addColumn<float>("genPtSum0p2", vals_genPtSum, "");
         out->addColumn<float>("genNeutralPtSum0p2", vals_genNeutralPtSum, "");
-        out->addColumn<float>("recoPtSum0p2", vals_recoPtSum, "");
-        out->addColumn<float>("genRecoRatio0p2", vals_genRecoPtRatio, "");
+        out->addColumn<float>("genChargedPtSum0p2", vals_genChargedPtSum, "");
+        out->addColumn<float>("genChargedHadPtSum0p2", vals_genChargedPtHadSum, "");
+        out->addColumn<float>("genNeutralHadPtSum0p2", vals_genNeutralPtHadSum, "");
+        
+	out->addColumn<float>("recoPtSum0p2", vals_recoPtSum, "");
+        out->addColumn<float>("recoNeutralPtSum0p2", vals_recoNeutralPtSum, "");
+        out->addColumn<float>("recoChargedPtSum0p2", vals_recoChargedPtSum, "");
+        out->addColumn<float>("recoChargedHadPtSum0p2", vals_recoChargedPtHadSum, "");
+        out->addColumn<float>("recoNeutralHadPtSum0p2", vals_recoNeutralPtHadSum, "");
+	
+	out->addColumn<float>("genRecoRatio0p2", vals_genRecoPtRatio, "");
+	
+	out->addColumn<int>("isGenMatched", vals_isGenMatched, "");
 
         out->addColumn<float>("caloeta", vals_caloeta, "");
         out->addColumn<float>("calophi", vals_calophi, "");
