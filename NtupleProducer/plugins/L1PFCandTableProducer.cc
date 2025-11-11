@@ -7,6 +7,7 @@
 #include "DataFormats/Common/interface/View.h"
 
 #include "DataFormats/Candidate/interface/Candidate.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 
 #include "DataFormats/Math/interface/deltaR.h"
 
@@ -18,9 +19,9 @@
 #include "CommonTools/Utils/interface/StringCutObjectSelector.h"
 #include "CommonTools/Utils/interface/StringObjectFunction.h"
 
-#include <algorithm>
-
 #include "L1Trigger/Phase2L1ParticleFlow/interface/L1TPFUtils.h"
+
+#include <algorithm>
 
 class L1PFCandTableProducer : public edm::global::EDProducer<>  {
     public:
@@ -50,8 +51,7 @@ class L1PFCandTableProducer : public edm::global::EDProducer<>  {
                     sel(pset.existsAs<std::string>(name+"_sel") ? pset.getParameter<std::string>(name+"_sel") : "", true) {}
         };
         std::vector<CandRecord> cands_;
-
-	std::vector<CandRecord> gencands_;
+        std::vector<CandRecord> gencands_;
 };
 
 L1PFCandTableProducer::L1PFCandTableProducer(const edm::ParameterSet& iConfig) :
@@ -76,25 +76,46 @@ L1PFCandTableProducer::L1PFCandTableProducer(const edm::ParameterSet& iConfig) :
  }
 
 double calculate_deltaR(double eta1, double phi1, double eta2, double phi2) {
-    // Build pseudo-vectors (PtEtaPhiM) with dummy pT/M
-    reco::Candidate::LorentzVector v1(1.0, eta1, phi1, 0.0);
-    reco::Candidate::LorentzVector v2(1.0, eta2, phi2, 0.0);
-
-    return reco::deltaR(v1, v2);
+    return reco::deltaR(eta1, phi1, eta2, phi2);
 }
 
 L1PFCandTableProducer::~L1PFCandTableProducer() { }
 
-// ------------ method called for each event  ------------
+struct GenCounts {
+    int nGenInCone = 0;
+    int nGenStatus1InCone = 0;
+    int nGenPt2InCone = 0;
+    int nGenStatus1Pt2InCone = 0;
+
+    int nChargedGenInCone = 0;
+    int nChargedGenStatus1InCone = 0;
+    int nChargedGenPt2InCone = 0;
+    int nChargedGenStatus1Pt2InCone = 0;
+
+    int nNeutralGenInCone = 0;
+    int nNeutralGenStatus1InCone = 0;
+    int nNeutralGenPt2InCone = 0;
+    int nNeutralGenStatus1Pt2InCone = 0;
+
+    int nChargedHadGenInCone = 0;
+    int nChargedHadGenStatus1InCone = 0;
+    int nChargedHadGenPt2InCone = 0;
+    int nChargedHadGenStatus1Pt2InCone = 0;
+
+    int nNeutralHadGenInCone = 0;
+    int nNeutralHadGenStatus1InCone = 0;
+    int nNeutralHadGenPt2InCone = 0;
+    int nNeutralHadGenStatus1Pt2InCone = 0;
+};
 
 struct PtSums {
     double genPtSum = 0, genNeutralPtSum = 0, genChargedPtSum = 0, genChargedPtHadSum = 0, genNeutralPtHadSum = 0;
     double recoPtSum = 0, recoNeutralPtSum = 0, recoChargedPtSum = 0, recoChargedPtHadSum = 0, recoNeutralPtHadSum = 0;
     double genRecoRatio = 0;
     int isGenMatched = 0;
+    GenCounts counts;
 };
 
-// Helper function to compute pT sums in a cone
 PtSums computePtSumsForCone(
     const reco::Candidate* cand,
     const std::vector<const reco::Candidate*>& selected,
@@ -109,7 +130,7 @@ PtSums computePtSumsForCone(
     double eta1 = (cand->charge() == 0) ? caloetaphi.first : cand->eta();
     double phi1 = (cand->charge() == 0) ? caloetaphi.second : cand->phi();
 
-    // --- RECO loop ---
+    // ---- RECO loop ----
     for (unsigned int j = 0; j < selected.size(); ++j) {
         const auto* other = selected[j];
         if (cand == other) continue;
@@ -136,12 +157,14 @@ PtSums computePtSumsForCone(
     if (abs(cand->pdgId()) == 211) sums.recoChargedPtHadSum += cand->pt();
     if (abs(cand->pdgId()) == 130) sums.recoNeutralPtHadSum += cand->pt();
 
-    // --- GEN loop ---
+    // ---- GEN loop (status==1 only) ----
     double min_dR = 999.;
     int idx_min_dR = -1;
 
     for (unsigned int k = 0; k < gen_selected.size(); ++k) {
         const auto* gen = gen_selected[k];
+        const reco::GenParticle* gp = dynamic_cast<const reco::GenParticle*>(gen);
+        if (!gp || gp->status() != 1) continue; // only stable
 
         math::XYZTLorentzVector vertex3(gen->vx(), gen->vy(), gen->vz(), 0.);
         auto caloetaphi3 = l1tpf::propagateToCalo(gen->p4(), vertex3, gen->charge(), bz);
@@ -155,6 +178,50 @@ PtSums computePtSumsForCone(
         }
 
         if (deltaR < coneSize) {
+            // --- generic counts ---
+            sums.counts.nGenInCone++;
+            sums.counts.nGenStatus1InCone++;
+            if (gp->pt() > 2) {
+                sums.counts.nGenPt2InCone++;
+                sums.counts.nGenStatus1Pt2InCone++;
+            }
+
+            // --- charged vs neutral ---
+            if (gp->charge() != 0) {
+                sums.counts.nChargedGenInCone++;
+                sums.counts.nChargedGenStatus1InCone++;
+                if (gp->pt() > 2) {
+                    sums.counts.nChargedGenPt2InCone++;
+                    sums.counts.nChargedGenStatus1Pt2InCone++;
+                }
+            } else {
+                sums.counts.nNeutralGenInCone++;
+                sums.counts.nNeutralGenStatus1InCone++;
+                if (gp->pt() > 2) {
+                    sums.counts.nNeutralGenPt2InCone++;
+                    sums.counts.nNeutralGenStatus1Pt2InCone++;
+                }
+            }
+
+            // --- hadron IDs ---
+            if (abs(gp->pdgId()) == 211) {
+                sums.counts.nChargedHadGenInCone++;
+                sums.counts.nChargedHadGenStatus1InCone++;
+                if (gp->pt() > 2) {
+                    sums.counts.nChargedHadGenPt2InCone++;
+                    sums.counts.nChargedHadGenStatus1Pt2InCone++;
+                }
+            }
+            if (abs(gp->pdgId()) == 130) {
+                sums.counts.nNeutralHadGenInCone++;
+                sums.counts.nNeutralHadGenStatus1InCone++;
+                if (gp->pt() > 2) {
+                    sums.counts.nNeutralHadGenPt2InCone++;
+                    sums.counts.nNeutralHadGenStatus1Pt2InCone++;
+                }
+            }
+
+            // --- pT sums (status==1 only) ---
             sums.genPtSum += gen->pt();
             if (gen->charge() == 0) sums.genNeutralPtSum += gen->pt();
             else sums.genChargedPtSum += gen->pt();
@@ -163,22 +230,18 @@ PtSums computePtSumsForCone(
         }
     }
 
-    // --- Explicitly add closest gen match for charged sum
+    // closest match among stable particles
     if (idx_min_dR >= 0 && min_dR < coneSize) {
         const auto* bestMatch = gen_selected[idx_min_dR];
         sums.genChargedPtSum     += bestMatch->pt();
         sums.genChargedPtHadSum  += bestMatch->pt();
     }
 
-    // --- Gen match flag
     if (min_dR < 0.1) sums.isGenMatched = 1;
-
-    // --- Ratio
     sums.genRecoRatio = (sums.recoPtSum > 0) ? sums.genPtSum / sums.recoPtSum : 0.0;
 
     return sums;
 }
-
 
 void
 L1PFCandTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const edm::EventSetup& iSetup) const
@@ -188,78 +251,104 @@ L1PFCandTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const edm::
     std::vector<const reco::Candidate *> gen_selected;
     std::vector<float> vals_pt, vals_eta, vals_phi, vals_mass;
 
+    // ---- collect GEN candidates ----
     for (auto & gencands : gencands_) {
         iEvent.getByToken(gencands.src, src);
         for (const auto & j : *src) {
-            if (sel_(j) && gencands.sel(j)) {
-                gen_selected.push_back(&j);
-            }
+            if (sel_(j) && gencands.sel(j)) gen_selected.push_back(&j);
         }
     }
 
+    // ---- loop over candidate collections ----
     for (auto & cands : cands_) {
         iEvent.getByToken(cands.src, src);
         for (const auto & j : *src) {
-            if (sel_(j) && cands.sel(j)) {
-                selected.push_back(&j);
-            }
+            if (sel_(j) && cands.sel(j)) selected.push_back(&j);
         }
 
-        unsigned int nGenCands = gen_selected.size();
         unsigned int ncands = selected.size();
         auto out = std::make_unique<nanoaod::FlatTable>(ncands, cands.coll+"Cands", false);
 
-        // fill basic info
+        // ---- fill basic info ----
         vals_pt.resize(ncands);
         vals_eta.resize(ncands);
         vals_phi.resize(ncands);
         vals_mass.resize(ncands);
         for (unsigned int i = 0; i < ncands; ++i) {
-            vals_pt[i] = selected[i]->pt();
-            vals_eta[i] = selected[i]->eta();
-            vals_phi[i] = selected[i]->phi();
+            vals_pt[i]   = selected[i]->pt();
+            vals_eta[i]  = selected[i]->eta();
+            vals_phi[i]  = selected[i]->phi();
             vals_mass[i] = selected[i]->mass();
         }
-        out->addColumn<float>("pt", vals_pt, "pt of cand");
-        out->addColumn<float>("eta", vals_eta, "eta of cand");
-        out->addColumn<float>("phi", vals_phi, "phi of cand");
+        out->addColumn<float>("pt",   vals_pt,   "pt of cand");
+        out->addColumn<float>("eta",  vals_eta,  "eta of cand");
+        out->addColumn<float>("phi",  vals_phi,  "phi of cand");
         out->addColumn<float>("mass", vals_mass, "mass of cand");
 
-        // fill extra vars
+        // ---- extra user-defined variables ----
         for (const auto & evar : extraVars_) {
-            for (unsigned int i = 0; i < ncands; ++i) {
-                vals_pt[i] = evar.func(*selected[i]);
-            }
+            for (unsigned int i = 0; i < ncands; ++i) vals_pt[i] = evar.func(*selected[i]);
             out->addColumn<float>(evar.name, vals_pt, evar.expr);
         }
 
         const float bz = 3.8112;
 
-        // Declare vectors for both cones
-        std::vector<float> vals_caloeta(ncands), vals_calophi(ncands);
+        // ---- allocate output vectors ----
         std::vector<int> vals_isGenMatched(ncands);
+        std::vector<float> vals_genRecoPtRatio0p2(ncands), vals_genRecoPtRatio0p3(ncands);
 
         std::vector<float> vals_genPtSum0p2(ncands), vals_genNeutralPtSum0p2(ncands),
                            vals_genChargedPtSum0p2(ncands), vals_genChargedPtHadSum0p2(ncands),
                            vals_genNeutralPtHadSum0p2(ncands);
-
         std::vector<float> vals_recoPtSum0p2(ncands), vals_recoNeutralPtSum0p2(ncands),
                            vals_recoChargedPtSum0p2(ncands), vals_recoChargedPtHadSum0p2(ncands),
                            vals_recoNeutralPtHadSum0p2(ncands);
 
-        std::vector<float> vals_genRecoPtRatio0p2(ncands);
-
         std::vector<float> vals_genPtSum0p3(ncands), vals_genNeutralPtSum0p3(ncands),
                            vals_genChargedPtSum0p3(ncands), vals_genChargedPtHadSum0p3(ncands),
                            vals_genNeutralPtHadSum0p3(ncands);
-
         std::vector<float> vals_recoPtSum0p3(ncands), vals_recoNeutralPtSum0p3(ncands),
                            vals_recoChargedPtSum0p3(ncands), vals_recoChargedPtHadSum0p3(ncands),
                            vals_recoNeutralPtHadSum0p3(ncands);
 
-        std::vector<float> vals_genRecoPtRatio0p3(ncands);
+        std::vector<float> vals_caloeta(ncands), vals_calophi(ncands);
 
-        // --- main loop per candidate
+        // ---- prepare vectors for gen counters ----
+        std::vector<int> nGenInCone0p1(ncands,0), nGenStatus1InCone0p1(ncands,0),
+                         nGenPt2InCone0p1(ncands,0), nGenStatus1Pt2InCone0p1(ncands,0);
+        std::vector<int> nChargedGenInCone0p1(ncands,0), nChargedGenStatus1InCone0p1(ncands,0),
+                         nChargedGenPt2InCone0p1(ncands,0), nChargedGenStatus1Pt2InCone0p1(ncands,0);
+        std::vector<int> nNeutralGenInCone0p1(ncands,0), nNeutralGenStatus1InCone0p1(ncands,0),
+                         nNeutralGenPt2InCone0p1(ncands,0), nNeutralGenStatus1Pt2InCone0p1(ncands,0);
+        std::vector<int> nChargedHadGenInCone0p1(ncands,0), nChargedHadGenStatus1InCone0p1(ncands,0),
+                         nChargedHadGenPt2InCone0p1(ncands,0), nChargedHadGenStatus1Pt2InCone0p1(ncands,0);
+        std::vector<int> nNeutralHadGenInCone0p1(ncands,0), nNeutralHadGenStatus1InCone0p1(ncands,0),
+                         nNeutralHadGenPt2InCone0p1(ncands,0), nNeutralHadGenStatus1Pt2InCone0p1(ncands,0);
+
+        // replicate for 0.2 and 0.3
+        std::vector<int> nGenInCone0p2(ncands,0), nGenStatus1InCone0p2(ncands,0),
+                         nGenPt2InCone0p2(ncands,0), nGenStatus1Pt2InCone0p2(ncands,0);
+        std::vector<int> nChargedGenInCone0p2(ncands,0), nChargedGenStatus1InCone0p2(ncands,0),
+                         nChargedGenPt2InCone0p2(ncands,0), nChargedGenStatus1Pt2InCone0p2(ncands,0);
+        std::vector<int> nNeutralGenInCone0p2(ncands,0), nNeutralGenStatus1InCone0p2(ncands,0),
+                         nNeutralGenPt2InCone0p2(ncands,0), nNeutralGenStatus1Pt2InCone0p2(ncands,0);
+        std::vector<int> nChargedHadGenInCone0p2(ncands,0), nChargedHadGenStatus1InCone0p2(ncands,0),
+                         nChargedHadGenPt2InCone0p2(ncands,0), nChargedHadGenStatus1Pt2InCone0p2(ncands,0);
+        std::vector<int> nNeutralHadGenInCone0p2(ncands,0), nNeutralHadGenStatus1InCone0p2(ncands,0),
+                         nNeutralHadGenPt2InCone0p2(ncands,0), nNeutralHadGenStatus1Pt2InCone0p2(ncands,0);
+
+        std::vector<int> nGenInCone0p3(ncands,0), nGenStatus1InCone0p3(ncands,0),
+                         nGenPt2InCone0p3(ncands,0), nGenStatus1Pt2InCone0p3(ncands,0);
+        std::vector<int> nChargedGenInCone0p3(ncands,0), nChargedGenStatus1InCone0p3(ncands,0),
+                         nChargedGenPt2InCone0p3(ncands,0), nChargedGenStatus1Pt2InCone0p3(ncands,0);
+        std::vector<int> nNeutralGenInCone0p3(ncands,0), nNeutralGenStatus1InCone0p3(ncands,0),
+                         nNeutralGenPt2InCone0p3(ncands,0), nNeutralGenStatus1Pt2InCone0p3(ncands,0);
+        std::vector<int> nChargedHadGenInCone0p3(ncands,0), nChargedHadGenStatus1InCone0p3(ncands,0),
+                         nChargedHadGenPt2InCone0p3(ncands,0), nChargedHadGenStatus1Pt2InCone0p3(ncands,0);
+        std::vector<int> nNeutralHadGenInCone0p3(ncands,0), nNeutralHadGenStatus1InCone0p3(ncands,0),
+                         nNeutralHadGenPt2InCone0p3(ncands,0), nNeutralHadGenStatus1Pt2InCone0p3(ncands,0);
+
+        // ---- main candidate loop ----
         for (unsigned int i = 0; i < ncands; ++i) {
             const auto* cand = selected[i];
 
@@ -268,10 +357,11 @@ L1PFCandTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const edm::
             vals_caloeta[i] = caloetaphi.first;
             vals_calophi[i] = caloetaphi.second;
 
-            // compute sums for both cone sizes
+            auto sums0p1 = computePtSumsForCone(cand, selected, gen_selected, 0.1, bz);
             auto sums0p2 = computePtSumsForCone(cand, selected, gen_selected, 0.2, bz);
             auto sums0p3 = computePtSumsForCone(cand, selected, gen_selected, 0.3, bz);
 
+            // --- store main numeric results (0.2/0.3) ---
             vals_genPtSum0p2[i] = sums0p2.genPtSum;
             vals_genNeutralPtSum0p2[i] = sums0p2.genNeutralPtSum;
             vals_genChargedPtSum0p2[i] = sums0p2.genChargedPtSum;
@@ -300,50 +390,138 @@ L1PFCandTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const edm::
             vals_recoNeutralPtHadSum0p3[i] = sums0p3.recoNeutralPtHadSum;
 
             vals_genRecoPtRatio0p3[i] = sums0p3.genRecoRatio;
+
+            // --- store gen counters (0.1/0.2/0.3) ---
+            nGenInCone0p1[i]                = sums0p1.counts.nGenInCone;
+            nGenStatus1InCone0p1[i]         = sums0p1.counts.nGenStatus1InCone;
+            nGenPt2InCone0p1[i]             = sums0p1.counts.nGenPt2InCone;
+            nGenStatus1Pt2InCone0p1[i]      = sums0p1.counts.nGenStatus1Pt2InCone;
+            nChargedGenInCone0p1[i]         = sums0p1.counts.nChargedGenInCone;
+            nChargedGenStatus1InCone0p1[i]  = sums0p1.counts.nChargedGenStatus1InCone;
+            nChargedGenPt2InCone0p1[i]      = sums0p1.counts.nChargedGenPt2InCone;
+            nChargedGenStatus1Pt2InCone0p1[i]=sums0p1.counts.nChargedGenStatus1Pt2InCone;
+            nNeutralGenInCone0p1[i]         = sums0p1.counts.nNeutralGenInCone;
+            nNeutralGenStatus1InCone0p1[i]  = sums0p1.counts.nNeutralGenStatus1InCone;
+            nNeutralGenPt2InCone0p1[i]      = sums0p1.counts.nNeutralGenPt2InCone;
+            nNeutralGenStatus1Pt2InCone0p1[i]=sums0p1.counts.nNeutralGenStatus1Pt2InCone;
+            nChargedHadGenInCone0p1[i]      = sums0p1.counts.nChargedHadGenInCone;
+            nChargedHadGenStatus1InCone0p1[i]=sums0p1.counts.nChargedHadGenStatus1InCone;
+            nChargedHadGenPt2InCone0p1[i]   = sums0p1.counts.nChargedHadGenPt2InCone;
+            nChargedHadGenStatus1Pt2InCone0p1[i]=sums0p1.counts.nChargedHadGenStatus1Pt2InCone;
+            nNeutralHadGenInCone0p1[i]      = sums0p1.counts.nNeutralHadGenInCone;
+            nNeutralHadGenStatus1InCone0p1[i]=sums0p1.counts.nNeutralHadGenStatus1InCone;
+            nNeutralHadGenPt2InCone0p1[i]   = sums0p1.counts.nNeutralHadGenPt2InCone;
+            nNeutralHadGenStatus1Pt2InCone0p1[i]=sums0p1.counts.nNeutralHadGenStatus1Pt2InCone;
+
+            // repeat for 0.2 / 0.3
+            nGenInCone0p2[i]                = sums0p2.counts.nGenInCone;
+            nGenStatus1InCone0p2[i]         = sums0p2.counts.nGenStatus1InCone;
+            nGenPt2InCone0p2[i]             = sums0p2.counts.nGenPt2InCone;
+            nGenStatus1Pt2InCone0p2[i]      = sums0p2.counts.nGenStatus1Pt2InCone;
+            nChargedGenInCone0p2[i]         = sums0p2.counts.nChargedGenInCone;
+            nChargedGenStatus1InCone0p2[i]  = sums0p2.counts.nChargedGenStatus1InCone;
+            nChargedGenPt2InCone0p2[i]      = sums0p2.counts.nChargedGenPt2InCone;
+            nChargedGenStatus1Pt2InCone0p2[i]=sums0p2.counts.nChargedGenStatus1Pt2InCone;
+            nNeutralGenInCone0p2[i]         = sums0p2.counts.nNeutralGenInCone;
+            nNeutralGenStatus1InCone0p2[i]  = sums0p2.counts.nNeutralGenStatus1InCone;
+            nNeutralGenPt2InCone0p2[i]      = sums0p2.counts.nNeutralGenPt2InCone;
+            nNeutralGenStatus1Pt2InCone0p2[i]=sums0p2.counts.nNeutralGenStatus1Pt2InCone;
+            nChargedHadGenInCone0p2[i]      = sums0p2.counts.nChargedHadGenInCone;
+            nChargedHadGenStatus1InCone0p2[i]=sums0p2.counts.nChargedHadGenStatus1InCone;
+            nChargedHadGenPt2InCone0p2[i]   = sums0p2.counts.nChargedHadGenPt2InCone;
+            nChargedHadGenStatus1Pt2InCone0p2[i]=sums0p2.counts.nChargedHadGenStatus1Pt2InCone;
+            nNeutralHadGenInCone0p2[i]      = sums0p2.counts.nNeutralHadGenInCone;
+            nNeutralHadGenStatus1InCone0p2[i]=sums0p2.counts.nNeutralHadGenStatus1InCone;
+            nNeutralHadGenPt2InCone0p2[i]   = sums0p2.counts.nNeutralHadGenPt2InCone;
+            nNeutralHadGenStatus1Pt2InCone0p2[i]=sums0p2.counts.nNeutralHadGenStatus1Pt2InCone;
+
+            nGenInCone0p3[i]                = sums0p3.counts.nGenInCone;
+            nGenStatus1InCone0p3[i]         = sums0p3.counts.nGenStatus1InCone;
+            nGenPt2InCone0p3[i]             = sums0p3.counts.nGenPt2InCone;
+            nGenStatus1Pt2InCone0p3[i]      = sums0p3.counts.nGenStatus1Pt2InCone;
+            nChargedGenInCone0p3[i]         = sums0p3.counts.nChargedGenInCone;
+            nChargedGenStatus1InCone0p3[i]  = sums0p3.counts.nChargedGenStatus1InCone;
+            nChargedGenPt2InCone0p3[i]      = sums0p3.counts.nChargedGenPt2InCone;
+            nChargedGenStatus1Pt2InCone0p3[i]=sums0p3.counts.nChargedGenStatus1Pt2InCone;
+            nNeutralGenInCone0p3[i]         = sums0p3.counts.nNeutralGenInCone;
+            nNeutralGenStatus1InCone0p3[i]  = sums0p3.counts.nNeutralGenStatus1InCone;
+            nNeutralGenPt2InCone0p3[i]      = sums0p3.counts.nNeutralGenPt2InCone;
+            nNeutralGenStatus1Pt2InCone0p3[i]=sums0p3.counts.nNeutralGenStatus1Pt2InCone;
+            nChargedHadGenInCone0p3[i]      = sums0p3.counts.nChargedHadGenInCone;
+            nChargedHadGenStatus1InCone0p3[i]=sums0p3.counts.nChargedHadGenStatus1InCone;
+            nChargedHadGenPt2InCone0p3[i]   = sums0p3.counts.nChargedHadGenPt2InCone;
+            nChargedHadGenStatus1Pt2InCone0p3[i]=sums0p3.counts.nChargedHadGenStatus1Pt2InCone;
+            nNeutralHadGenInCone0p3[i]      = sums0p3.counts.nNeutralHadGenInCone;
+            nNeutralHadGenStatus1InCone0p3[i]=sums0p3.counts.nNeutralHadGenStatus1InCone;
+            nNeutralHadGenPt2InCone0p3[i]   = sums0p3.counts.nNeutralHadGenPt2InCone;
+            nNeutralHadGenStatus1Pt2InCone0p3[i]=sums0p3.counts.nNeutralHadGenStatus1Pt2InCone;
         }
 
-        // --- Add columns for 0p2 cone
+        // ---- add columns for 0p2 and 0p3 cones ----
         out->addColumn<float>("genPtSum0p2", vals_genPtSum0p2, "");
         out->addColumn<float>("genNeutralPtSum0p2", vals_genNeutralPtSum0p2, "");
         out->addColumn<float>("genChargedPtSum0p2", vals_genChargedPtSum0p2, "");
         out->addColumn<float>("genChargedHadPtSum0p2", vals_genChargedPtHadSum0p2, "");
         out->addColumn<float>("genNeutralHadPtSum0p2", vals_genNeutralPtHadSum0p2, "");
-
         out->addColumn<float>("recoPtSum0p2", vals_recoPtSum0p2, "");
         out->addColumn<float>("recoNeutralPtSum0p2", vals_recoNeutralPtSum0p2, "");
         out->addColumn<float>("recoChargedPtSum0p2", vals_recoChargedPtSum0p2, "");
         out->addColumn<float>("recoChargedHadPtSum0p2", vals_recoChargedPtHadSum0p2, "");
         out->addColumn<float>("recoNeutralHadPtSum0p2", vals_recoNeutralPtHadSum0p2, "");
-
         out->addColumn<float>("genRecoRatio0p2", vals_genRecoPtRatio0p2, "");
 
-        // --- Add columns for 0p3 cone
         out->addColumn<float>("genPtSum0p3", vals_genPtSum0p3, "");
         out->addColumn<float>("genNeutralPtSum0p3", vals_genNeutralPtSum0p3, "");
         out->addColumn<float>("genChargedPtSum0p3", vals_genChargedPtSum0p3, "");
         out->addColumn<float>("genChargedHadPtSum0p3", vals_genChargedPtHadSum0p3, "");
         out->addColumn<float>("genNeutralHadPtSum0p3", vals_genNeutralPtHadSum0p3, "");
-
         out->addColumn<float>("recoPtSum0p3", vals_recoPtSum0p3, "");
         out->addColumn<float>("recoNeutralPtSum0p3", vals_recoNeutralPtSum0p3, "");
         out->addColumn<float>("recoChargedPtSum0p3", vals_recoChargedPtSum0p3, "");
         out->addColumn<float>("recoChargedHadPtSum0p3", vals_recoChargedPtHadSum0p3, "");
         out->addColumn<float>("recoNeutralHadPtSum0p3", vals_recoNeutralPtHadSum0p3, "");
-
         out->addColumn<float>("genRecoRatio0p3", vals_genRecoPtRatio0p3, "");
-
         out->addColumn<int>("isGenMatched", vals_isGenMatched, "");
-
         out->addColumn<float>("caloeta", vals_caloeta, "");
         out->addColumn<float>("calophi", vals_calophi, "");
 
-        // save to the event branches
-        iEvent.put(std::move(out), cands.coll+"Cands");
+        // ---- add new gen-count columns ----
+        auto addCounts = [&](const std::string &prefix, const std::string &cone,
+                             const std::vector<int> &a, const std::vector<int> &b,
+                             const std::vector<int> &c, const std::vector<int> &d) {
+            out->addColumn<int>(prefix+"InCone"+cone, a, "");
+            out->addColumn<int>(prefix+"Status1InCone"+cone, b, "");
+            out->addColumn<int>(prefix+"Pt2InCone"+cone, c, "");
+            out->addColumn<int>(prefix+"Status1Pt2InCone"+cone, d, "");
+        };
 
+        addCounts("nGen", "0p1", nGenInCone0p1, nGenStatus1InCone0p1, nGenPt2InCone0p1, nGenStatus1Pt2InCone0p1);
+        addCounts("nGen", "0p2", nGenInCone0p2, nGenStatus1InCone0p2, nGenPt2InCone0p2, nGenStatus1Pt2InCone0p2);
+        addCounts("nGen", "0p3", nGenInCone0p3, nGenStatus1InCone0p3, nGenPt2InCone0p3, nGenStatus1Pt2InCone0p3);
+
+        addCounts("nChargedGen", "0p1", nChargedGenInCone0p1, nChargedGenStatus1InCone0p1, nChargedGenPt2InCone0p1, nChargedGenStatus1Pt2InCone0p1);
+        addCounts("nChargedGen", "0p2", nChargedGenInCone0p2, nChargedGenStatus1InCone0p2, nChargedGenPt2InCone0p2, nChargedGenStatus1Pt2InCone0p2);
+        addCounts("nChargedGen", "0p3", nChargedGenInCone0p3, nChargedGenStatus1InCone0p3, nChargedGenPt2InCone0p3, nChargedGenStatus1Pt2InCone0p3);
+
+        addCounts("nNeutralGen", "0p1", nNeutralGenInCone0p1, nNeutralGenStatus1InCone0p1, nNeutralGenPt2InCone0p1, nNeutralGenStatus1Pt2InCone0p1);
+        addCounts("nNeutralGen", "0p2", nNeutralGenInCone0p2, nNeutralGenStatus1InCone0p2, nNeutralGenPt2InCone0p2, nNeutralGenStatus1Pt2InCone0p2);
+        addCounts("nNeutralGen", "0p3", nNeutralGenInCone0p3, nNeutralGenStatus1InCone0p3, nNeutralGenPt2InCone0p3, nNeutralGenStatus1Pt2InCone0p3);
+
+        addCounts("nChargedHadGen", "0p1", nChargedHadGenInCone0p1, nChargedHadGenStatus1InCone0p1, nChargedHadGenPt2InCone0p1, nChargedHadGenStatus1Pt2InCone0p1);
+        addCounts("nChargedHadGen", "0p2", nChargedHadGenInCone0p2, nChargedHadGenStatus1InCone0p2, nChargedHadGenPt2InCone0p2, nChargedHadGenStatus1Pt2InCone0p2);
+        addCounts("nChargedHadGen", "0p3", nChargedHadGenInCone0p3, nChargedHadGenStatus1InCone0p3, nChargedHadGenPt2InCone0p3, nChargedHadGenStatus1Pt2InCone0p3);
+
+        addCounts("nNeutralHadGen", "0p1", nNeutralHadGenInCone0p1, nNeutralHadGenStatus1InCone0p1, nNeutralHadGenPt2InCone0p1, nNeutralHadGenStatus1Pt2InCone0p1);
+        addCounts("nNeutralHadGen", "0p2", nNeutralHadGenInCone0p2, nNeutralHadGenStatus1InCone0p2, nNeutralHadGenPt2InCone0p2, nNeutralHadGenStatus1Pt2InCone0p2);
+        addCounts("nNeutralHadGen", "0p3", nNeutralHadGenInCone0p3, nNeutralHadGenStatus1InCone0p3, nNeutralHadGenPt2InCone0p3, nNeutralHadGenStatus1Pt2InCone0p3);
+
+        // ---- save to event ----
+        iEvent.put(std::move(out), cands.coll+"Cands");
         selected.clear();
     }
 }
 
-//define this as a plug-in
+// define this as a plug-in
 #include "FWCore/Framework/interface/MakerMacros.h"
 DEFINE_FWK_MODULE(L1PFCandTableProducer);
+
