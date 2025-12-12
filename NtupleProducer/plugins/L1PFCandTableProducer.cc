@@ -156,24 +156,34 @@ PtSums computePtSumsForCone(
         sums.recoPtSum += other->pt();
         if (other->charge() == 0) sums.recoNeutralPtSum += other->pt();
         else sums.recoChargedPtSum += other->pt();
-        if (abs(other->pdgId()) == 211) sums.recoChargedPtHadSum += other->pt();
-        if (abs(other->pdgId()) == 130) sums.recoNeutralPtHadSum += other->pt();
+        if (abs(other->pdgId()) == 211) {
+	  sums.recoChargedPtHadSum += other->pt();
+	  //std::cout << "RECO CHARGED (pdgId() = 211), pt = " << other->pt() << std::endl;
+	}
+        if (abs(other->pdgId()) == 130) {
+	  sums.recoNeutralPtHadSum += other->pt();
+	  //std::cout << "RECO NEUTRAL (pdgId() = 130), pt = " << other->pt() << std::endl;
+	}
     }
 
-    // include self
+    // include self    
+    //std::cout << "RECO Candidate pt = " << cand->pt() << std::endl;
+    //std::cout << "\t\t with pdgId() = " << abs(cand->pdgId()) << std::endl;
+    //std::cout << "\t\t and charge   = " << cand->charge() << std::endl;
+    //std::cout << "---------------------------------------------" << std::endl;
     sums.recoPtSum += cand->pt();
     if (cand->charge() == 0) sums.recoNeutralPtSum += cand->pt();
     else sums.recoChargedPtSum += cand->pt();
     if (abs(cand->pdgId()) == 211) sums.recoChargedPtHadSum += cand->pt();
     if (abs(cand->pdgId()) == 130) sums.recoNeutralPtHadSum += cand->pt();
 
-    // ---- GEN loop (status==1 only) ----
+    // ---- GEN loop (status == 1 only) ----
     double min_dR = 999.;
 
     for (unsigned int k = 0; k < gen_selected.size(); ++k) {
         const auto* gen = gen_selected[k];
         const reco::GenParticle* gp = dynamic_cast<const reco::GenParticle*>(gen);
-	if (!gp) continue; // keep ALL statuses
+	if (!gp) continue; // keep ALL status types
 	//if (!gp || gp->status() != 1) continue; // Only stable since the beginning of the gen loop
 
         math::XYZTLorentzVector vertex3(gen->vx(), gen->vy(), gen->vz(), 0.);
@@ -197,8 +207,8 @@ PtSums computePtSumsForCone(
 	bool isChargedHad = (abs(gp->pdgId()) == 211);
 	bool isNeutralHad = (abs(gp->pdgId()) == 130);
 	
-	bool passChargedHad = (isChargedHad   && gen->pt() > 2);
-	bool passNeutralHad = (isNeutralHad   && gen->pt() > 1);
+	bool passChargedHad = (isChargedHad && gen->pt() > 2);
+	bool passNeutralHad = (isNeutralHad && gen->pt() > 1);
 	bool passGenPtThr   = (passNeutral || passCharged);
 	
 	// --- Generic GEN counts (ALL) ---
@@ -314,6 +324,7 @@ L1PFCandTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const edm::
             vals_eta[i]  = selected[i]->eta();
             vals_phi[i]  = selected[i]->phi();
             vals_mass[i] = selected[i]->mass();
+	    std::cout << "Hello selected[i]->pt() = " << selected[i]->pt() << std::endl;
         }
         out->addColumn<float>("pt",   vals_pt,   "pt of cand");
         out->addColumn<float>("eta",  vals_eta,  "eta of cand");
@@ -331,8 +342,8 @@ L1PFCandTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const edm::
         // ---- allocate output vectors ----
         std::vector<int> vals_isGenMatched(ncands);
         std::vector<float> vals_genRecoPtRatio0p2(ncands), vals_genRecoPtRatio0p3(ncands);
-
-        std::vector<float> vals_genPtSum0p2(ncands), vals_genNeutralPtSum0p2(ncands),
+	
+	std::vector<float> vals_genPtSum0p2(ncands), vals_genNeutralPtSum0p2(ncands),
                            vals_genChargedPtSum0p2(ncands), vals_genChargedPtHadSum0p2(ncands),
                            vals_genNeutralPtHadSum0p2(ncands);
         std::vector<float> vals_recoPtSum0p2(ncands), vals_recoNeutralPtSum0p2(ncands),
