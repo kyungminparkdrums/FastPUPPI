@@ -280,9 +280,11 @@ PtSums computePtSumsForCone(
 	
 	if (abs(gen->pdgId()) == 130 && passNeutral)
 	  sums.genNeutralPtHadSum += gen->pt();		
+    
+        // gen matching flag; 
+	if (((min_dR < 0.1) && isStatus1) && (passNeutral || passCharged)) sums.isGenMatched = 1;
     }
 
-    if (min_dR < 0.1) sums.isGenMatched = 1;
     sums.genRecoRatio = (sums.recoPtSum > 0) ? sums.genPtSum / sums.recoPtSum : 0.0;
 
     return sums;
@@ -324,7 +326,7 @@ L1PFCandTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const edm::
             vals_eta[i]  = selected[i]->eta();
             vals_phi[i]  = selected[i]->phi();
             vals_mass[i] = selected[i]->mass();
-	    std::cout << "Hello selected[i]->pt() = " << selected[i]->pt() << std::endl;
+	    //std::cout << "Hello selected[i]->pt() = " << selected[i]->pt() << std::endl;
         }
         out->addColumn<float>("pt",   vals_pt,   "pt of cand");
         out->addColumn<float>("eta",  vals_eta,  "eta of cand");
