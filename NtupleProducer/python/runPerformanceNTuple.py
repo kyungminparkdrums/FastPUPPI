@@ -679,7 +679,13 @@ def addTkEG(doL1=False, doL2=True, postfix=""):
         tkEmTable, tkEleTable = getTkEgTables('L2', postfix, f"l1tLayer2EG:L1CtTkEm", f'l1tLayer2EG:L1CtTkElectron')
         setattr(process, "TkEmL2%sTable" % (postfix), tkEmTable)
         setattr(process, "TkEleL2%sTable" % (postfix), tkEleTable)
-        process.extraPFStuff.add(tkEmTable,tkEleTable)
+        
+        tkEleL2ExtTable = cms.EDProducer("L1TkEleL2IsoTableProducer",
+            commonSel = cms.string("pt > 0.0 && abs(eta) < 10.0"),
+        )
+        setattr(process, f"TkEleL2%sExtTable" % (postfix), tkEleL2ExtTable)
+
+        process.extraPFStuff.add(tkEmTable,tkEleTable,tkEleL2ExtTable)
 
 
 def addDecodedTk(regs=['HGCal','Barrel']):        
