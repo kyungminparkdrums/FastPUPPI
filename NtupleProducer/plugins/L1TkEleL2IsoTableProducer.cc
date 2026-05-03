@@ -77,6 +77,7 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
     std::vector<const reco::Candidate *> pf_selected;
     std::vector<const reco::Candidate *> tkele_selected;
     std::vector<float> vals_isoRaw, vals_isoRawOtherEleVeto, vals_isoRel, vals_isoRelOtherEleVeto;
+    std::vector<float> vals_isoRawNoCaloEtaPhi, vals_isoRawOtherEleVetoNoCaloEtaPhi, vals_isoRelNoCaloEtaPhi, vals_isoRelOtherEleVetoNoCaloEtaPhi; // using eta-phi only (without calo eta/phi for neutrals) // variable names are getting longer and longer
 
     for (auto & pf_cands : pf_cands_) {
         // get and select
@@ -104,15 +105,28 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
 	vals_isoRawOtherEleVeto.resize(ncands);
 	vals_isoRelOtherEleVeto.resize(ncands);
 
+        const float bz = 3.8112; // for caloeta/phi calculation
+	
 	// loop over electrons
 	for (unsigned int iEle = 0; iEle < ncands; ++iEle) {
 	    float isoRaw = 0.;
 	    float isoRaw_otherEleVeto = 0.;
 
+	    float isoRawNoCaloEtaPhi = 0.;
+	    float isoRaw_otherEleVetoNoCaloEtaPhi = 0.;
+
 	    // for each electron, get the nearby PFs by checking deltaR(ele, PF) < 0.3
 	    for (unsigned int iPF = 0; iPF < ncands_pf; ++iPF) {
-                float dR_ele_pf = reco::deltaR(tkele_selected[iEle]->eta(), tkele_selected[iEle]->phi(),
-			                       pf_selected[iPF]->eta(), pf_selected[iPF]->phi());	
+		// use caloeta/phi for NEUTRAL pf candidates
+                math::XYZTLorentzVector vertex(pf_selected[iPF]->vx(),pf_selected[iPF]->vy(),pf_selected[iPF]->vz(),0.);
+		auto caloetaphi = l1tpf::propagateToCalo(pf_selected[iPF]->p4(),vertex,pf_selected[iPF]->charge(),bz);
+                float caloeta = caloetaphi.first;
+                float calophi = caloetaphi.second;
+   
+                float eta = (pf_selected[iPF]->charge() != 0) ? pf_selected[iPF]->eta() : caloeta;
+                float phi = (pf_selected[iPF]->charge() != 0) ? pf_selected[iPF]->phi() : calophi;
+
+		float dR_ele_pf = reco::deltaR(tkele_selected[iEle]->eta(), tkele_selected[iEle]->phi(), eta, phi);	
                 
 		if (dR_ele_pf > 0.3) continue;
 
@@ -132,8 +146,7 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
 	        for (unsigned int jEle = 0; jEle < ncands; ++jEle) {
                     if (jEle == iEle) continue;
 
-		    float dR_other_pf = reco::deltaR(tkele_selected[jEle]->eta(), tkele_selected[jEle]->phi(),
-				                     pf_selected[iPF]->eta(), pf_selected[iPF]->phi());
+		    float dR_other_pf = reco::deltaR(tkele_selected[jEle]->eta(), tkele_selected[jEle]->phi(), eta, phi);
 		    if (dR_other_pf < 0.02) {
                         veto_by_other_ele = true;
 			break;
