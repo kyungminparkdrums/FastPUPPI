@@ -95,110 +95,120 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
         for (const auto & j : *src) {
             tkele_selected.push_back(&j);
         }
+    }
 
-        // create the table
-        unsigned int ncands = tkele_selected.size();
-        unsigned int ncands_pf = pf_selected.size();
-        auto out = std::make_unique<nanoaod::FlatTable>(ncands, "TkEleL2", false, true);
+    // create the table
+    unsigned int ncands = tkele_selected.size();
+    unsigned int ncands_pf = pf_selected.size();
+    auto out = std::make_unique<nanoaod::FlatTable>(ncands, "TkEleL2", false, true);
 
-        // fill in the table
-        vals_isoRaw.resize(ncands);
-        vals_isoRel.resize(ncands);
+    // fill in the table
+    vals_isoRaw.resize(ncands);
+    vals_isoRel.resize(ncands);
  
-        vals_isoRawSumAll.resize(ncands);
-        vals_isoRawSelfVetoOnly.resize(ncands);
-        vals_isoRelSumAll.resize(ncands);
-        vals_isoRelSelfVetoOnly.resize(ncands);
+    vals_isoRawSumAll.resize(ncands);
+    vals_isoRawSelfVetoOnly.resize(ncands);
+    vals_isoRelSumAll.resize(ncands);
+    vals_isoRelSelfVetoOnly.resize(ncands);
 
-        vals_nPfAll.resize(ncands);
-        vals_nPfDr0p3.resize(ncands);
-        vals_nPfSelfVetoOnly.resize(ncands);
-        vals_nPfDz.resize(ncands);
+    vals_nPfAll.resize(ncands);
+    vals_nPfDr0p3.resize(ncands);
+    vals_nPfSelfVetoOnly.resize(ncands);
+    vals_nPfDz.resize(ncands);
 
-        const float bz = 3.8112; // for caloeta/phi calculation
+    const float bz = 3.8112; // for caloeta/phi calculation
     
-        // loop over electrons
-        for (unsigned int iEle = 0; iEle < ncands; ++iEle) {
-            float isoRawSumAll = 0.;
-            float isoRawSelfVetoOnly = 0.;
-            float isoRaw = 0.; // after dz veto
+    // loop over electrons
+    for (unsigned int iEle = 0; iEle < ncands; ++iEle) {
+        float isoRawSumAll = 0.;
+        float isoRawSelfVetoOnly = 0.;
+        float isoRaw = 0.; // after dz veto
 
-            float nPfAll = ncands_pf;
-            float nPfDr0p3 = 0;
-            float nPfSelfVetoOnly = 0;
-            float nPfDz = 0;
+        float nPfAll = ncands_pf;
+        float nPfDr0p3 = 0;
+        float nPfSelfVetoOnly = 0;
+        float nPfDz = 0;
 
-            // for each electron, get the nearby PFs by checking deltaR(ele, PF) < 0.3
-            //if (iEle == 0) std::cout << "ncands_pf from TkEle plugin = " << ncands_pf << std::endl;
-            for (unsigned int iPF = 0; iPF < ncands_pf; ++iPF) {
-                // use caloeta/phi for NEUTRAL pf candidates
-                math::XYZTLorentzVector vertex(pf_selected[iPF]->vx(),pf_selected[iPF]->vy(),pf_selected[iPF]->vz(),0.);
-                auto caloetaphi = l1tpf::propagateToCalo(pf_selected[iPF]->p4(),vertex,pf_selected[iPF]->charge(),bz);
-                float caloeta = caloetaphi.first;
-                float calophi = caloetaphi.second;
+        // for each electron, get the nearby PFs by checking deltaR(ele, PF) < 0.3
+        //if (iEle == 0) std::cout << "ncands_pf from TkEle plugin = " << ncands_pf << std::endl;
+        //if (iEle == 0) std::cout << "isoRaw = " << isoRaw << std::endl;
+	    
+	for (unsigned int iPF = 0; iPF < ncands_pf; ++iPF) {
+            // use caloeta/phi for NEUTRAL pf candidates
+            math::XYZTLorentzVector vertex(pf_selected[iPF]->vx(),pf_selected[iPF]->vy(),pf_selected[iPF]->vz(),0.);
+            auto caloetaphi = l1tpf::propagateToCalo(pf_selected[iPF]->p4(),vertex,pf_selected[iPF]->charge(),bz);
+            float caloeta = caloetaphi.first;
+            float calophi = caloetaphi.second;
    
-                float eta = (pf_selected[iPF]->charge() != 0) ? pf_selected[iPF]->eta() : caloeta;
-                float phi = (pf_selected[iPF]->charge() != 0) ? pf_selected[iPF]->phi() : calophi;
+            float eta = (pf_selected[iPF]->charge() != 0) ? pf_selected[iPF]->eta() : caloeta;
+            float phi = (pf_selected[iPF]->charge() != 0) ? pf_selected[iPF]->phi() : calophi;
 
-                float dR_ele_pf = reco::deltaR(tkele_selected[iEle]->eta(), tkele_selected[iEle]->phi(), eta, phi); 
+            float dR_ele_pf = reco::deltaR(tkele_selected[iEle]->eta(), tkele_selected[iEle]->phi(), eta, phi); 
         
-                if (dR_ele_pf > 0.3) continue;
+            if (dR_ele_pf > 0.3) continue;
 
-                nPfDr0p3 += 1;
-                isoRawSumAll += pf_selected[iPF]->pt();
+            nPfDr0p3 += 1;
+            isoRawSumAll += pf_selected[iPF]->pt();
 
-                // self-veto; if deltaR(ele, PF) < 0.05, then do not add to the sum
-                if (dR_ele_pf < 0.05) continue;
+	    //std::cout << "pf cand pt = " << pf_selected[iPF]->pt() << ", isoRawSumAll = " << isoRawSumAll<< std::endl;
+                
+            // self-veto; if deltaR(ele, PF) < 0.05, then do not add to the sum
+            if (dR_ele_pf < 0.05) continue;
 
-                nPfSelfVetoOnly += 1;
-                isoRawSelfVetoOnly += pf_selected[iPF]->pt();
+            nPfSelfVetoOnly += 1;
+            isoRawSelfVetoOnly += pf_selected[iPF]->pt();
 
-                // same vertex requirement; for charged PF, add to the sum only if delta vz (ele, charged PF) < 0.5
-                if (pf_selected[iPF]->charge() != 0) {
-                    float dz = std::abs(tkele_selected[iEle]->vz() - pf_selected[iPF]->vz());
-                    if (dz > 0.5) continue;
-                }
-
-                nPfDz += 1;
-                isoRaw += pf_selected[iPF]->pt();
+            // same vertex requirement; for charged PF, add to the sum only if delta vz (ele, charged PF) < 0.5
+            if (pf_selected[iPF]->charge() != 0) {
+                float dz = std::abs(tkele_selected[iEle]->vz() - pf_selected[iPF]->vz());
+                if (dz > 0.5) continue;
             }
 
-            vals_nPfAll[iEle] = nPfAll; // should be the same for all ele in the event
-            vals_nPfDr0p3[iEle] = nPfDr0p3;
-            vals_nPfSelfVetoOnly[iEle] = nPfSelfVetoOnly;
-            vals_nPfDz[iEle] = nPfDz;
-
-            vals_isoRawSumAll[iEle] = isoRawSumAll; 
-            vals_isoRawSelfVetoOnly[iEle] = isoRawSelfVetoOnly; 
-            vals_isoRaw[iEle] = isoRaw; 
-    
-            const auto * tkEle = dynamic_cast<const l1t::TkElectron*>(tkele_selected[iEle]);
-            float ptCorr = tkEle->userFloat("ptCorr");
-
-            vals_isoRelSumAll[iEle] = isoRawSumAll / ptCorr;
-            vals_isoRelSelfVetoOnly[iEle] = isoRawSelfVetoOnly / ptCorr;
-            vals_isoRel[iEle] = isoRaw / ptCorr;
+            nPfDz += 1;
+            isoRaw += pf_selected[iPF]->pt();
+            //if (iEle == 0) std::cout << "isoRaw = " << isoRaw << std::endl;
         }
+
+        //std::cout << "ISORAWSUMALL = " << isoRawSumAll << std::endl;	
+            
+        vals_nPfAll[iEle] = nPfAll; // should be the same for all ele in the event
+        vals_nPfDr0p3[iEle] = nPfDr0p3;
+        vals_nPfSelfVetoOnly[iEle] = nPfSelfVetoOnly;
+        vals_nPfDz[iEle] = nPfDz;
+
+        vals_isoRawSumAll[iEle] = isoRawSumAll; 
+        vals_isoRawSelfVetoOnly[iEle] = isoRawSelfVetoOnly; 
+        vals_isoRaw[iEle] = isoRaw; 
+   
+        const auto * tkEle = dynamic_cast<const l1t::TkElectron*>(tkele_selected[iEle]);
+        float ptCorr = tkEle->userFloat("ptCorr");
+
+        vals_isoRelSumAll[iEle] = isoRawSumAll / ptCorr;
+        vals_isoRelSelfVetoOnly[iEle] = isoRawSelfVetoOnly / ptCorr;
+        vals_isoRel[iEle] = isoRaw / ptCorr;
+    }
+  
+    //std::cout << "vals_isoRawSumAll[0] = " << vals_isoRawSumAll[0] << std::endl;	
+    //std::cout << "vals_isoRawSumAll[1] = " << vals_isoRawSumAll[1] << std::endl;	
         
-        out->addColumn<float>("nPfAll", vals_nPfAll, "number of PF candidates in the event");
-        out->addColumn<float>("nPfDr0p3", vals_nPfDr0p3, "number of PF candidates within dR < 0.3");
-        out->addColumn<float>("nPfSelfVetoOnly", vals_nPfSelfVetoOnly, "number of PF candidates within dR < 0.3 & self veto");
-        out->addColumn<float>("nPfDz", vals_nPfDz, "number of PF candidates within dR < 0.3 & self veto & dz");
+    out->addColumn<float>("nPfAll", vals_nPfAll, "number of PF candidates in the event");
+    out->addColumn<float>("nPfDr0p3", vals_nPfDr0p3, "number of PF candidates within dR < 0.3");
+    out->addColumn<float>("nPfSelfVetoOnly", vals_nPfSelfVetoOnly, "number of PF candidates within dR < 0.3 & self veto");
+    out->addColumn<float>("nPfDz", vals_nPfDz, "number of PF candidates within dR < 0.3 & self veto & dz");
     
-        out->addColumn<float>("customPfIsoRawSumAll", vals_isoRawSumAll, "custom PF iso (no veto)");
-        out->addColumn<float>("customPfIsoRawSelfVetoOnly", vals_isoRawSelfVetoOnly, "custom PF iso (self veto only)");
-        out->addColumn<float>("customPfIsoRaw", vals_isoRaw, "custom PF iso");
-        out->addColumn<float>("customPfIsoRelSumAll", vals_isoRelSumAll, "custom PF iso relative (no veto)");
-        out->addColumn<float>("customPfIsoRelSelfVetoOnly", vals_isoRelSelfVetoOnly, "custom PF iso relative (self veto only)");
-        out->addColumn<float>("customPfIsoRel", vals_isoRel, "custom PF iso relative");
+    out->addColumn<float>("customPfIsoRawSumAll", vals_isoRawSumAll, "custom PF iso (no veto)");
+    out->addColumn<float>("customPfIsoRawSelfVetoOnly", vals_isoRawSelfVetoOnly, "custom PF iso (self veto only)");
+    out->addColumn<float>("customPfIsoRaw", vals_isoRaw, "custom PF iso");
+    out->addColumn<float>("customPfIsoRelSumAll", vals_isoRelSumAll, "custom PF iso relative (no veto)");
+    out->addColumn<float>("customPfIsoRelSelfVetoOnly", vals_isoRelSelfVetoOnly, "custom PF iso relative (self veto only)");
+    out->addColumn<float>("customPfIsoRel", vals_isoRel, "custom PF iso relative");
 
-        // save to the event branches
-        iEvent.put(std::move(out));
+    // save to the event branches
+    iEvent.put(std::move(out));
 
-        // clear
-        tkele_selected.clear();
-        pf_selected.clear();
-    } 
+    // clear
+    tkele_selected.clear();
+    pf_selected.clear();
 }
 
 //define this as a plug-in
