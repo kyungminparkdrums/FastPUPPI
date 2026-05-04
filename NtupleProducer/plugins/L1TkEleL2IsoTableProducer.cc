@@ -76,8 +76,10 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
     edm::Handle<reco::CandidateView> src;
     std::vector<const reco::Candidate *> pf_selected;
     std::vector<const reco::Candidate *> tkele_selected;
-    std::vector<float> vals_isoRaw, vals_isoRawOtherEleVeto, vals_isoRel, vals_isoRelOtherEleVeto;
-    std::vector<float> vals_isoRawNoCaloEtaPhi, vals_isoRawOtherEleVetoNoCaloEtaPhi, vals_isoRelNoCaloEtaPhi, vals_isoRelOtherEleVetoNoCaloEtaPhi; // using eta-phi only (without calo eta/phi for neutrals) // variable names are getting longer and longer
+    std::vector<float> vals_isoRaw, vals_isoRel;
+    // for debugging purposes, add everything after each type of veto to the sum
+    std::vector<float> vals_isoRawSumAll, vals_isoRawSelfVetoOnly, vals_isoRelSumAll, vals_isoRelSelfVetoOnly;
+    std::vector<float> vals_nPfAll, vals_nPfDr0p3, vals_nPfSelfVetoOnly, vals_nPfDz;
 
     for (auto & pf_cands : pf_cands_) {
         // get and select
@@ -102,20 +104,32 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
 	// fill in the table
 	vals_isoRaw.resize(ncands);
 	vals_isoRel.resize(ncands);
-	vals_isoRawOtherEleVeto.resize(ncands);
-	vals_isoRelOtherEleVeto.resize(ncands);
+ 
+	vals_isoRawSumAll.resize(ncands);
+	vals_isoRawSelfVetoOnly.resize(ncands);
+        vals_isoRelSumAll.resize(ncands);
+	vals_isoRelSelfVetoOnly.resize(ncands);
+
+	vals_nPfAll.resize(ncands);
+	vals_nPfDr0p3.resize(ncands);
+	vals_nPfSelfVetoOnly.resize(ncands);
+	vals_nPfDz.resize(ncands);
 
         const float bz = 3.8112; // for caloeta/phi calculation
 	
 	// loop over electrons
 	for (unsigned int iEle = 0; iEle < ncands; ++iEle) {
-	    float isoRaw = 0.;
-	    float isoRaw_otherEleVeto = 0.;
+	    float isoRawSumAll = 0.;
+	    float isoRawSelfVetoOnly = 0.;
+	    float isoRaw = 0.; // after dz veto
 
-	    float isoRawNoCaloEtaPhi = 0.;
-	    float isoRaw_otherEleVetoNoCaloEtaPhi = 0.;
+	    float nPfAll = ncands_pf;
+            float nPfDr0p3 = 0;
+	    float nPfSelfVetoOnly = 0;
+	    float nPfDz = 0;
 
 	    // for each electron, get the nearby PFs by checking deltaR(ele, PF) < 0.3
+	    //if (iEle == 0) std::cout << "ncands_pf from TkEle plugin = " << ncands_pf << std::endl;
 	    for (unsigned int iPF = 0; iPF < ncands_pf; ++iPF) {
 		// use caloeta/phi for NEUTRAL pf candidates
                 math::XYZTLorentzVector vertex(pf_selected[iPF]->vx(),pf_selected[iPF]->vy(),pf_selected[iPF]->vz(),0.);
@@ -126,12 +140,18 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
                 float eta = (pf_selected[iPF]->charge() != 0) ? pf_selected[iPF]->eta() : caloeta;
                 float phi = (pf_selected[iPF]->charge() != 0) ? pf_selected[iPF]->phi() : calophi;
 
-		float dR_ele_pf = reco::deltaR(tkele_selected[iEle]->eta(), tkele_selected[iEle]->phi(), eta, phi);	
-                
+	        float dR_ele_pf = reco::deltaR(tkele_selected[iEle]->eta(), tkele_selected[iEle]->phi(), eta, phi);	
+		
 		if (dR_ele_pf > 0.3) continue;
+
+                nPfDr0p3 += 1;
+                isoRawSumAll += pf_selected[iPF]->pt();
 
 		// self-veto; if deltaR(ele, PF) < 0.05, then do not add to the sum
 		if (dR_ele_pf < 0.05) continue;
+
+                nPfSelfVetoOnly += 1;
+                isoRawSelfVetoOnly += pf_selected[iPF]->pt();
 
 		// same vertex requirement; for charged PF, add to the sum only if delta vz (ele, charged PF) < 0.5
                 if (pf_selected[iPF]->charge() != 0) {
@@ -139,38 +159,38 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
 		    if (dz > 0.5) continue;
 		}
 
+                nPfDz += 1;
 		isoRaw += pf_selected[iPF]->pt();
-
-		bool veto_by_other_ele = false;
-		// additionally, other electron veto; if deltaR(another ele, PF) < 0.02, then do not add to the sum
-	        for (unsigned int jEle = 0; jEle < ncands; ++jEle) {
-                    if (jEle == iEle) continue;
-
-		    float dR_other_pf = reco::deltaR(tkele_selected[jEle]->eta(), tkele_selected[jEle]->phi(), eta, phi);
-		    if (dR_other_pf < 0.02) {
-                        veto_by_other_ele = true;
-			break;
-	            }
-	        }
-		if (veto_by_other_ele) continue;
-
-	        isoRaw_otherEleVeto += pf_selected[iPF]->pt();
 	    }
 
+            vals_nPfAll[iEle] = nPfAll; // should be the same for all ele in the event
+            vals_nPfDr0p3[iEle] = nPfDr0p3;
+	    vals_nPfSelfVetoOnly[iEle] = nPfSelfVetoOnly;
+	    vals_nPfDz[iEle] = nPfDz;
+
+    	    vals_isoRawSumAll[iEle] = isoRawSumAll; 
+	    vals_isoRawSelfVetoOnly[iEle] = isoRawSelfVetoOnly; 
 	    vals_isoRaw[iEle] = isoRaw; 
-	    vals_isoRawOtherEleVeto[iEle] = isoRaw_otherEleVeto; 
 	
 	    const auto * tkEle = dynamic_cast<const l1t::TkElectron*>(tkele_selected[iEle]);
 	    float ptCorr = tkEle->userFloat("ptCorr");
 
+	    vals_isoRelSumAll[iEle] = isoRawSumAll / ptCorr;
+	    vals_isoRelSelfVetoOnly[iEle] = isoRawSelfVetoOnly / ptCorr;
 	    vals_isoRel[iEle] = isoRaw / ptCorr;
-	    vals_isoRelOtherEleVeto[iEle] = isoRaw_otherEleVeto / ptCorr;
-	
 	}
+        
+	out->addColumn<float>("nPfAll", vals_nPfAll, "number of PF candidates in the event");
+	out->addColumn<float>("nPfDr0p3", vals_nPfDr0p3, "number of PF candidates within dR < 0.3");
+	out->addColumn<float>("nPfSelfVetoOnly", vals_nPfSelfVetoOnly, "number of PF candidates within dR < 0.3 & self veto");
+	out->addColumn<float>("nPfDz", vals_nPfDz, "number of PF candidates within dR < 0.3 & self veto & dz");
+	
+	out->addColumn<float>("customPfIsoRawSumAll", vals_isoRawSumAll, "custom PF iso (no veto)");
+        out->addColumn<float>("customPfIsoRawSelfVetoOnly", vals_isoRawSelfVetoOnly, "custom PF iso (self veto only)");
         out->addColumn<float>("customPfIsoRaw", vals_isoRaw, "custom PF iso");
-        out->addColumn<float>("customPfIsoRawOtherEleVeto", vals_isoRawOtherEleVeto, "custom PF iso (w/ other electron veto)");
+        out->addColumn<float>("customPfIsoRelSumAll", vals_isoRelSumAll, "custom PF iso relative (no veto)");
+        out->addColumn<float>("customPfIsoRelSelfVetoOnly", vals_isoRelSelfVetoOnly, "custom PF iso relative (self veto only)");
         out->addColumn<float>("customPfIsoRel", vals_isoRel, "custom PF iso relative");
-        out->addColumn<float>("customPfIsoRelOtherEleVeto", vals_isoRelOtherEleVeto, "custom PF iso relative (w/ other electron veto)");
 
 	// save to the event branches
         iEvent.put(std::move(out));
