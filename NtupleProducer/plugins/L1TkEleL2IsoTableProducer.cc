@@ -133,7 +133,7 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
         //if (iEle == 0) std::cout << "ncands_pf from TkEle plugin = " << ncands_pf << std::endl;
         //if (iEle == 0) std::cout << "isoRaw = " << isoRaw << std::endl;
 	    
-	for (unsigned int iPF = 0; iPF < ncands_pf; ++iPF) {
+        for (unsigned int iPF = 0; iPF < ncands_pf; ++iPF) {
             // use caloeta/phi for NEUTRAL pf candidates
             math::XYZTLorentzVector vertex(pf_selected[iPF]->vx(),pf_selected[iPF]->vy(),pf_selected[iPF]->vz(),0.);
             auto caloetaphi = l1tpf::propagateToCalo(pf_selected[iPF]->p4(),vertex,pf_selected[iPF]->charge(),bz);
