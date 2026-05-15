@@ -74,152 +74,438 @@ void
 L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const edm::EventSetup& iSetup) const
 {
     edm::Handle<reco::CandidateView> src;
+
     std::vector<const reco::Candidate *> pf_selected;
     std::vector<const reco::Candidate *> tkele_selected;
-    std::vector<float> vals_isoRaw, vals_isoRel, vals_isoRelUncorrPt; // using regressed pt vs not
-    
-    // for debugging purposes, add everything after each type of veto to the sum
-    std::vector<float> vals_isoRawSumAll, vals_isoRawSelfVetoOnly;
-    std::vector<float> vals_isoRelSumAll, vals_isoRelSelfVetoOnly;
-    std::vector<float> vals_isoRelSumAllUncorrPt, vals_isoRelSelfVetoOnlyUncorrPt;
-    std::vector<float> vals_nPfAll, vals_nPfDr0p3, vals_nPfSelfVetoOnly, vals_nPfDz;
 
-    // Get PF candidates and TkElectron candidates
-    for (auto & pf_cands : pf_cands_) {
-        // get and select
+    // for debugging purposes, add everything after each type of veto to the sum
+    std::vector<float> vals_isoRawSumAll, vals_isoRawAllSelfVeto, vals_isoRawAllDzVeto, vals_isoRawAllPFeleVeto, vals_isoRawAllPFphoVeto, vals_isoRawAllPFegmVeto;
+    std::vector<float> vals_isoRelSumAll, vals_isoRelAllSelfVeto, vals_isoRelAllDzVeto, vals_isoRelAllPFeleVeto, vals_isoRelAllPFphoVeto, vals_isoRelAllPFegmVeto;
+    std::vector<float> vals_isoRelSumAllUncorrPt, vals_isoRelAllSelfVetoUncorrPt, vals_isoRelAllDzVetoUncorrPt, vals_isoRelAllPFeleVetoUncorrPt, vals_isoRelAllPFphoVetoUncorrPt, vals_isoRelAllPFegmVetoUncorrPt;
+
+    // consider charged only
+    std::vector<float> vals_isoRawSumChg, vals_isoRawChgSelfVeto, vals_isoRawChgDzVeto, vals_isoRawChgPFeleVeto;
+    std::vector<float> vals_isoRelSumChg, vals_isoRelChgSelfVeto, vals_isoRelChgDzVeto, vals_isoRelChgPFeleVeto;
+    std::vector<float> vals_isoRelSumChgUncorrPt, vals_isoRelChgSelfVetoUncorrPt, vals_isoRelChgDzVetoUncorrPt, vals_isoRelChgPFeleVetoUncorrPt;
+
+    // consider neutral only
+    std::vector<float> vals_isoRawSumNeu, vals_isoRawNeuSelfVeto, vals_isoRawNeuPFphoVeto;
+    std::vector<float> vals_isoRelSumNeu, vals_isoRelNeuSelfVeto, vals_isoRelNeuPFphoVeto;
+    std::vector<float> vals_isoRelSumNeuUncorrPt, vals_isoRelNeuSelfVetoUncorrPt, vals_isoRelNeuPFphoVetoUncorrPt;
+
+    // multiplicity
+    std::vector<float> vals_nPFall, vals_nPFallDr0p3, vals_nPFallSelfVeto, vals_nPFallDz, vals_nPFallEleVeto, vals_nPFallPhoVeto, vals_nPFallEgmVeto;
+    std::vector<float> vals_nPFchg, vals_nPFchgDr0p3, vals_nPFchgSelfVeto, vals_nPFchgDz, vals_nPFchgEleVeto;
+    std::vector<float> vals_nPFneu, vals_nPFneuDr0p3, vals_nPFneuSelfVeto, vals_nPFneuPhoVeto;
+
+    // Get PF candidates
+    for (const auto & pf_cands : pf_cands_) {
         iEvent.getByToken(pf_cands.src, src);
+        pf_selected.reserve(pf_selected.size() + src->size());
+
         for (const auto & k : *src) {
-            pf_selected.push_back(&k);
+            if (pf_cands.sel(k)) {
+                pf_selected.push_back(&k);
+            }
         }
     }
 
-    for (auto & tkele_cands : tkele_cands_) {
-        // get and select
+    // Get TkElectron candidates
+    for (const auto & tkele_cands : tkele_cands_) {
         iEvent.getByToken(tkele_cands.src, src);
+        tkele_selected.reserve(tkele_selected.size() + src->size());
+
         for (const auto & j : *src) {
-            tkele_selected.push_back(&j);
+            if (tkele_cands.sel(j) && sel_(j)) {
+                tkele_selected.push_back(&j);
+            }
         }
     }
 
     // create the table
     unsigned int ncands = tkele_selected.size();
     unsigned int ncands_pf = pf_selected.size();
+
     auto out = std::make_unique<nanoaod::FlatTable>(ncands, "TkEleL2", false, true);
 
     // resize the vectors per electron candidate size
-    vals_isoRaw.resize(ncands);
-    vals_isoRel.resize(ncands);
-    vals_isoRelUncorrPt.resize(ncands);
- 
     vals_isoRawSumAll.resize(ncands);
-    vals_isoRawSelfVetoOnly.resize(ncands);
-    vals_isoRelSumAll.resize(ncands);
-    vals_isoRelSelfVetoOnly.resize(ncands);
-    vals_isoRelSumAllUncorrPt.resize(ncands);
-    vals_isoRelSelfVetoOnlyUncorrPt.resize(ncands);
+    vals_isoRawAllSelfVeto.resize(ncands);
+    vals_isoRawAllDzVeto.resize(ncands);
+    vals_isoRawAllPFeleVeto.resize(ncands);
+    vals_isoRawAllPFphoVeto.resize(ncands);
+    vals_isoRawAllPFegmVeto.resize(ncands);
 
-    vals_nPfAll.resize(ncands);
-    vals_nPfDr0p3.resize(ncands);
-    vals_nPfSelfVetoOnly.resize(ncands);
-    vals_nPfDz.resize(ncands);
+    vals_isoRelSumAll.resize(ncands);
+    vals_isoRelAllSelfVeto.resize(ncands);
+    vals_isoRelAllDzVeto.resize(ncands);
+    vals_isoRelAllPFeleVeto.resize(ncands);
+    vals_isoRelAllPFphoVeto.resize(ncands);
+    vals_isoRelAllPFegmVeto.resize(ncands);
+
+    vals_isoRelSumAllUncorrPt.resize(ncands);
+    vals_isoRelAllSelfVetoUncorrPt.resize(ncands);
+    vals_isoRelAllDzVetoUncorrPt.resize(ncands);
+    vals_isoRelAllPFeleVetoUncorrPt.resize(ncands);
+    vals_isoRelAllPFphoVetoUncorrPt.resize(ncands);
+    vals_isoRelAllPFegmVetoUncorrPt.resize(ncands);
+
+    vals_isoRawSumChg.resize(ncands);
+    vals_isoRawChgSelfVeto.resize(ncands);
+    vals_isoRawChgDzVeto.resize(ncands);
+    vals_isoRawChgPFeleVeto.resize(ncands);
+
+    vals_isoRelSumChg.resize(ncands);
+    vals_isoRelChgSelfVeto.resize(ncands);
+    vals_isoRelChgDzVeto.resize(ncands);
+    vals_isoRelChgPFeleVeto.resize(ncands);
+
+    vals_isoRelSumChgUncorrPt.resize(ncands);
+    vals_isoRelChgSelfVetoUncorrPt.resize(ncands);
+    vals_isoRelChgDzVetoUncorrPt.resize(ncands);
+    vals_isoRelChgPFeleVetoUncorrPt.resize(ncands);
+
+    vals_isoRawSumNeu.resize(ncands);
+    vals_isoRawNeuSelfVeto.resize(ncands);
+    vals_isoRawNeuPFphoVeto.resize(ncands);
+
+    vals_isoRelSumNeu.resize(ncands);
+    vals_isoRelNeuSelfVeto.resize(ncands);
+    vals_isoRelNeuPFphoVeto.resize(ncands);
+
+    vals_isoRelSumNeuUncorrPt.resize(ncands);
+    vals_isoRelNeuSelfVetoUncorrPt.resize(ncands);
+    vals_isoRelNeuPFphoVetoUncorrPt.resize(ncands);
+
+    vals_nPFall.resize(ncands);
+    vals_nPFallDr0p3.resize(ncands);
+    vals_nPFallSelfVeto.resize(ncands);
+    vals_nPFallDz.resize(ncands);
+    vals_nPFallEleVeto.resize(ncands);
+    vals_nPFallPhoVeto.resize(ncands);
+    vals_nPFallEgmVeto.resize(ncands);
+
+    vals_nPFchg.resize(ncands);
+    vals_nPFchgDr0p3.resize(ncands);
+    vals_nPFchgSelfVeto.resize(ncands);
+    vals_nPFchgDz.resize(ncands);
+    vals_nPFchgEleVeto.resize(ncands);
+
+    vals_nPFneu.resize(ncands);
+    vals_nPFneuDr0p3.resize(ncands);
+    vals_nPFneuSelfVeto.resize(ncands);
+    vals_nPFneuPhoVeto.resize(ncands);
 
     const float bz = 3.8112; // for caloeta/phi calculation
-    
+
     // loop over electrons
-    for (unsigned int iEle = 0; iEle < ncands; ++iEle) {
-        float isoRawSumAll = 0.;
-        float isoRawSelfVetoOnly = 0.;
-        float isoRaw = 0.; // after dz veto
-
-        float nPfAll = ncands_pf;
-        float nPfDr0p3 = 0;
-        float nPfSelfVetoOnly = 0;
-        float nPfDz = 0;
-
-	// recast to TkElectron object to access some variables
+    for (unsigned int iEle = 0; iEle < ncands; iEle++) {
         const auto * tkEle = dynamic_cast<const l1t::TkElectron*>(tkele_selected[iEle]);
-         
-        math::XYZTLorentzVector vertex(tkEle->vx(),tkEle->vy(),tkEle->vz(),0.);
-        auto caloetaphi = l1tpf::propagateToCalo(tkEle->p4(),vertex,tkEle->charge(),bz);
+
+        const float eleEta = tkEle->eta();
+        const float elePhi = tkEle->phi();
+        const float eleZ = tkEle->trkzVtx(); // simple vz() method returns 0 for tkEle object somehow
+
+        const float egEta = tkEle->egCaloPtr()->eta();
+        const float egPhi = tkEle->egCaloPtr()->phi();
+
+        // Keep this propagated calo calculation for future reference
+        // FIXME: neutral PF matching below uses tkEle->egCaloPtr()->eta()/phi(), but this seems to be different from manually propagated values
+        math::XYZTLorentzVector vertex(tkEle->vx(), tkEle->vy(), tkEle->vz(), 0.);
+        auto caloetaphi = l1tpf::propagateToCalo(tkEle->p4(), vertex, tkEle->charge(), bz);
         float caloeta = caloetaphi.first;
         float calophi = caloetaphi.second;
 
-        //std::cout << "Electron eta = " << tkEle->eta() << ", caloeta = " << caloeta << ", phi = " << tkEle->phi() << ", calophi = " << calophi << ", default caloeta = " << tkEle->egCaloPtr()->eta() <<  std::endl; // FIXME: the default caloeta vs. manually propagated caloeta are different
-       
-	// for each electron, get the nearby PFs by checking deltaR(ele, PF) < 0.3
-        for (unsigned int iPF = 0; iPF < ncands_pf; ++iPF) {
-            // use electron caloeta/phi for NEUTRAL pf candidates (use the default caloeta/phi stored in tkEle->egCaloPtr()
-            float eta = (pf_selected[iPF]->charge() != 0) ? tkEle->eta() : tkEle->egCaloPtr()->eta();
-            float phi = (pf_selected[iPF]->charge() != 0) ? tkEle->phi() : tkEle->egCaloPtr()->phi();
+        // std::cout << "Electron eta = " << tkEle->eta() << ", caloeta = " << caloeta << ", phi = " << tkEle->phi() << ", calophi = " << calophi << ", default caloeta = " << tkEle->egCaloPtr()->eta() << std::endl;
 
-            float dR_ele_pf = reco::deltaR(pf_selected[iPF]->eta(), pf_selected[iPF]->phi(), eta, phi); 
-        
-            if (dR_ele_pf > 0.3) continue;
+        const float ptCorr = tkEle->userFloat("ptCorr"); // regressed pt
+        const float pt = tkEle->pt();
 
-            nPfDr0p3 += 1;
-            isoRawSumAll += pf_selected[iPF]->pt();
+        // raw isolation sums: all PF
+        float isoRawSumAll = 0.;
+        float isoRawAllSelfVeto = 0.;
+        float isoRawAllDzVeto = 0.;
+        float isoRawAllPFeleVeto = 0.;
+        float isoRawAllPFphoVeto = 0.;
+        float isoRawAllPFegmVeto = 0.;
 
-            // self-veto; if deltaR(ele, PF) < 0.05, then do not add to the sum
-            if (dR_ele_pf < 0.05) continue;
+        // raw isolation sums: charged PF
+        float isoRawSumChg = 0.;
+        float isoRawChgSelfVeto = 0.;
+        float isoRawChgDzVeto = 0.;
+        float isoRawChgPFeleVeto = 0.;
 
-            nPfSelfVetoOnly += 1;
-            isoRawSelfVetoOnly += pf_selected[iPF]->pt();
+        // raw isolation sums: neutral PF
+        float isoRawSumNeu = 0.;
+        float isoRawNeuSelfVeto = 0.;
+        float isoRawNeuPFphoVeto = 0.;
 
-            // same vertex requirement; for charged PF, add to the sum only if delta vz (ele, charged PF) < 0.5
-            if (pf_selected[iPF]->charge() != 0) {
-                float dz = std::abs(tkEle->trkzVtx() - pf_selected[iPF]->vz()); // tkEle->vz() gives zero
-                if (dz > 0.5) continue;
+        // multiplicities: all PF
+        float nPFall = ncands_pf;
+        float nPFallDr0p3 = 0.;
+        float nPFallSelfVeto = 0.;
+        float nPFallDz = 0.;
+        float nPFallEleVeto = 0.;
+        float nPFallPhoVeto = 0.;
+        float nPFallEgmVeto = 0.;
+
+        // multiplicities: charged PF
+        float nPFchg = 0.;
+        float nPFchgDr0p3 = 0.;
+        float nPFchgSelfVeto = 0.;
+        float nPFchgDz = 0.;
+        float nPFchgEleVeto = 0.;
+
+        // multiplicities: neutral PF
+        float nPFneu = 0.;
+        float nPFneuDr0p3 = 0.;
+        float nPFneuSelfVeto = 0.;
+        float nPFneuPhoVeto = 0.;
+
+        // loop over PF candidates
+        for (const auto * pf : pf_selected) {
+            const float pfPt = pf->pt();
+            const int pfCharge = pf->charge();
+
+            const bool isChg = pfCharge != 0;
+            const bool isNeu = pfCharge == 0;
+
+            if (isChg) nPFchg++;
+            if (isNeu) nPFneu++;
+
+            // charged PF: use TkElectron track eta/phi
+            // neutral PF: use EG calo eta/phi
+            const float refEta = isChg ? eleEta : egEta;
+            const float refPhi = isChg ? elePhi : egPhi;
+
+            const float dR_ele_pf = reco::deltaR(pf->eta(), pf->phi(), refEta, refPhi);
+
+            if (dR_ele_pf > 0.3f) continue;
+
+            nPFallDr0p3++;
+            isoRawSumAll += pfPt;
+
+            if (isChg) {
+                nPFchgDr0p3++;
+                isoRawSumChg += pfPt;
+            } else {
+                nPFneuDr0p3++;
+                isoRawSumNeu += pfPt;
             }
 
-            nPfDz += 1;
-            isoRaw += pf_selected[iPF]->pt();
+            // self-veto
+            if (dR_ele_pf < 0.05) continue;
+
+            nPFallSelfVeto++;
+            isoRawAllSelfVeto += pfPt;
+
+            if (isChg) {
+                nPFchgSelfVeto++;
+                isoRawChgSelfVeto += pfPt;
+            } else {
+                nPFneuSelfVeto++;
+                isoRawNeuSelfVeto += pfPt;
+            }
+
+            // same vertex requirement for charged PFs only
+            bool passDz = true;
+            if (isChg) {
+                const float dz = std::abs(eleZ - pf->vz());
+                passDz = dz <= 0.5;
+            }
+
+            if (!passDz) continue;
+
+            nPFallDz++;
+            isoRawAllDzVeto += pfPt;
+
+            if (isChg) {
+                nPFchgDz++;
+                isoRawChgDzVeto += pfPt;
+            }
+
+            // PF electron / photon / EGM veto
+            const int absPdgId = std::abs(pf->pdgId());
+            const bool isPFEle = absPdgId == 11;
+            const bool isPFPho = absPdgId == 22;
+            const bool isPFEgm = isPFEle || isPFPho;
+
+            // PF electron veto
+            if (!isPFEle) {
+                nPFallEleVeto++;
+                isoRawAllPFeleVeto += pfPt;
+
+                if (isChg) {
+                    nPFchgEleVeto++;
+                    isoRawChgPFeleVeto += pfPt;
+                }
+            }
+
+            // PF photon veto
+            if (!isPFPho) {
+                nPFallPhoVeto++;
+                isoRawAllPFphoVeto += pfPt;
+
+                if (isNeu) {
+                    nPFneuPhoVeto++;
+                    isoRawNeuPFphoVeto += pfPt;
+                }
+            }
+
+            // PF EGM veto
+            if (!isPFEgm) {
+                nPFallEgmVeto++;
+                isoRawAllPFegmVeto += pfPt;
+            }
         }
-            
-        vals_nPfAll[iEle] = nPfAll; // should be the same for all ele in the event
-        vals_nPfDr0p3[iEle] = nPfDr0p3;
-        vals_nPfSelfVetoOnly[iEle] = nPfSelfVetoOnly;
-        vals_nPfDz[iEle] = nPfDz;
 
-        vals_isoRawSumAll[iEle] = isoRawSumAll; 
-        vals_isoRawSelfVetoOnly[iEle] = isoRawSelfVetoOnly; 
-        vals_isoRaw[iEle] = isoRaw; 
+        // save multiplicities
+        vals_nPFall[iEle] = nPFall;
+        vals_nPFallDr0p3[iEle] = nPFallDr0p3;
+        vals_nPFallSelfVeto[iEle] = nPFallSelfVeto;
+        vals_nPFallDz[iEle] = nPFallDz;
+        vals_nPFallEleVeto[iEle] = nPFallEleVeto;
+        vals_nPFallPhoVeto[iEle] = nPFallPhoVeto;
+        vals_nPFallEgmVeto[iEle] = nPFallEgmVeto;
 
-        float ptCorr = tkEle->userFloat("ptCorr");
-	vals_isoRelSumAll[iEle] = isoRawSumAll / ptCorr;
-        vals_isoRelSelfVetoOnly[iEle] = isoRawSelfVetoOnly / ptCorr;
-        vals_isoRel[iEle] = isoRaw / ptCorr;
-   
-        float pt = tkEle->pt();	
+        vals_nPFchg[iEle] = nPFchg;
+        vals_nPFchgDr0p3[iEle] = nPFchgDr0p3;
+        vals_nPFchgSelfVeto[iEle] = nPFchgSelfVeto;
+        vals_nPFchgDz[iEle] = nPFchgDz;
+        vals_nPFchgEleVeto[iEle] = nPFchgEleVeto;
+
+        vals_nPFneu[iEle] = nPFneu;
+        vals_nPFneuDr0p3[iEle] = nPFneuDr0p3;
+        vals_nPFneuSelfVeto[iEle] = nPFneuSelfVeto;
+        vals_nPFneuPhoVeto[iEle] = nPFneuPhoVeto;
+
+        // save raw isolation
+        vals_isoRawSumAll[iEle] = isoRawSumAll;
+        vals_isoRawAllSelfVeto[iEle] = isoRawAllSelfVeto;
+        vals_isoRawAllDzVeto[iEle] = isoRawAllDzVeto;
+        vals_isoRawAllPFeleVeto[iEle] = isoRawAllPFeleVeto;
+        vals_isoRawAllPFphoVeto[iEle] = isoRawAllPFphoVeto;
+        vals_isoRawAllPFegmVeto[iEle] = isoRawAllPFegmVeto;
+
+        vals_isoRawSumChg[iEle] = isoRawSumChg;
+        vals_isoRawChgSelfVeto[iEle] = isoRawChgSelfVeto;
+        vals_isoRawChgDzVeto[iEle] = isoRawChgDzVeto;
+        vals_isoRawChgPFeleVeto[iEle] = isoRawChgPFeleVeto;
+
+        vals_isoRawSumNeu[iEle] = isoRawSumNeu;
+        vals_isoRawNeuSelfVeto[iEle] = isoRawNeuSelfVeto;
+        vals_isoRawNeuPFphoVeto[iEle] = isoRawNeuPFphoVeto;
+
+        // relative isolation using corrected pt
+        vals_isoRelSumAll[iEle] = isoRawSumAll / ptCorr;
+        vals_isoRelAllSelfVeto[iEle] = isoRawAllSelfVeto / ptCorr;
+        vals_isoRelAllDzVeto[iEle] = isoRawAllDzVeto / ptCorr;
+        vals_isoRelAllPFeleVeto[iEle] = isoRawAllPFeleVeto / ptCorr;
+        vals_isoRelAllPFphoVeto[iEle] = isoRawAllPFphoVeto / ptCorr;
+        vals_isoRelAllPFegmVeto[iEle] = isoRawAllPFegmVeto / ptCorr;
+
+        vals_isoRelSumChg[iEle] = isoRawSumChg / ptCorr;
+        vals_isoRelChgSelfVeto[iEle] = isoRawChgSelfVeto / ptCorr;
+        vals_isoRelChgDzVeto[iEle] = isoRawChgDzVeto / ptCorr;
+        vals_isoRelChgPFeleVeto[iEle] = isoRawChgPFeleVeto / ptCorr;
+
+        vals_isoRelSumNeu[iEle] = isoRawSumNeu / ptCorr;
+        vals_isoRelNeuSelfVeto[iEle] = isoRawNeuSelfVeto / ptCorr;
+        vals_isoRelNeuPFphoVeto[iEle] = isoRawNeuPFphoVeto / ptCorr;
+
+        // relative isolation using uncorrected pt
         vals_isoRelSumAllUncorrPt[iEle] = isoRawSumAll / pt;
-        vals_isoRelSelfVetoOnlyUncorrPt[iEle] = isoRawSelfVetoOnly / pt;
-        vals_isoRelUncorrPt[iEle] = isoRaw / pt;
-    
-        //std::cout << "nPFDz = " << nPfDz << ", raw isolation after dz = " << isoRaw << ", relative isolation with uncorrected pt = " << isoRaw/pt << ", w/ regressed pt = " << isoRaw/ptCorr << std::endl;
-    }
-  
-    out->addColumn<float>("nPfAll", vals_nPfAll, "number of PF candidates in the event");
-    out->addColumn<float>("nPfDr0p3", vals_nPfDr0p3, "number of PF candidates within dR < 0.3");
-    out->addColumn<float>("nPfSelfVetoOnly", vals_nPfSelfVetoOnly, "number of PF candidates within dR < 0.3 & self veto");
-    out->addColumn<float>("nPfDz", vals_nPfDz, "number of PF candidates within dR < 0.3 & self veto & dz");
-    
-    out->addColumn<float>("customPfIsoRawSumAll", vals_isoRawSumAll, "custom PF iso (no veto)");
-    out->addColumn<float>("customPfIsoRawSelfVetoOnly", vals_isoRawSelfVetoOnly, "custom PF iso (self veto only)");
-    out->addColumn<float>("customPfIsoRaw", vals_isoRaw, "custom PF iso");
-    
-    out->addColumn<float>("customPfIsoRelSumAll", vals_isoRelSumAll, "custom PF iso relative (no veto)");
-    out->addColumn<float>("customPfIsoRelSelfVetoOnly", vals_isoRelSelfVetoOnly, "custom PF iso relative (self veto only)");
-    out->addColumn<float>("customPfIsoRel", vals_isoRel, "custom PF iso relative");
+        vals_isoRelAllSelfVetoUncorrPt[iEle] = isoRawAllSelfVeto / pt;
+        vals_isoRelAllDzVetoUncorrPt[iEle] = isoRawAllDzVeto / pt;
+        vals_isoRelAllPFeleVetoUncorrPt[iEle] = isoRawAllPFeleVeto / pt;
+        vals_isoRelAllPFphoVetoUncorrPt[iEle] = isoRawAllPFphoVeto / pt;
+        vals_isoRelAllPFegmVetoUncorrPt[iEle] = isoRawAllPFegmVeto / pt;
 
-    out->addColumn<float>("customPfIsoRelSumAllUncorrPt", vals_isoRelSumAllUncorrPt, "custom PF iso relative (no veto); using uncorrected pt");
-    out->addColumn<float>("customPfIsoRelSelfVetoOnlyUncorrPt", vals_isoRelSelfVetoOnlyUncorrPt, "custom PF iso relative (self veto only); using uncorrected pt");
-    out->addColumn<float>("customPfIsoRelUncorrPt", vals_isoRelUncorrPt, "custom PF iso relative; using uncorrected pt");
+        vals_isoRelSumChgUncorrPt[iEle] = isoRawSumChg / pt;
+        vals_isoRelChgSelfVetoUncorrPt[iEle] = isoRawChgSelfVeto / pt;
+        vals_isoRelChgDzVetoUncorrPt[iEle] = isoRawChgDzVeto / pt;
+        vals_isoRelChgPFeleVetoUncorrPt[iEle] = isoRawChgPFeleVeto / pt;
+
+        vals_isoRelSumNeuUncorrPt[iEle] = isoRawSumNeu / pt;
+        vals_isoRelNeuSelfVetoUncorrPt[iEle] = isoRawNeuSelfVeto / pt;
+        vals_isoRelNeuPFphoVetoUncorrPt[iEle] = isoRawNeuPFphoVeto / pt;
+    }
+
+    // multiplicity branches
+    out->addColumn<float>("nPFall", vals_nPFall, "number of PF candidates in the event");
+    out->addColumn<float>("nPFallDr0p3", vals_nPFallDr0p3, "number of PF candidates within dR < 0.3");
+    out->addColumn<float>("nPFallSelfVeto", vals_nPFallSelfVeto, "number of PF candidates within dR < 0.3 after self veto");
+    out->addColumn<float>("nPFallDz", vals_nPFallDz, "number of PF candidates within dR < 0.3 after self veto and dz veto");
+    out->addColumn<float>("nPFallEleVeto", vals_nPFallEleVeto, "number of PF candidates after PF electron veto");
+    out->addColumn<float>("nPFallPhoVeto", vals_nPFallPhoVeto, "number of PF candidates after PF photon veto");
+    out->addColumn<float>("nPFallEgmVeto", vals_nPFallEgmVeto, "number of PF candidates after PF EGM veto");
+
+    out->addColumn<float>("nPFchg", vals_nPFchg, "number of charged PF candidates in the event");
+    out->addColumn<float>("nPFchgDr0p3", vals_nPFchgDr0p3, "number of charged PF candidates within dR < 0.3");
+    out->addColumn<float>("nPFchgSelfVeto", vals_nPFchgSelfVeto, "number of charged PF candidates after self veto");
+    out->addColumn<float>("nPFchgDz", vals_nPFchgDz, "number of charged PF candidates after dz veto");
+    out->addColumn<float>("nPFchgEleVeto", vals_nPFchgEleVeto, "number of charged PF candidates after PF electron veto");
+
+    out->addColumn<float>("nPFneu", vals_nPFneu, "number of neutral PF candidates in the event");
+    out->addColumn<float>("nPFneuDr0p3", vals_nPFneuDr0p3, "number of neutral PF candidates within dR < 0.3");
+    out->addColumn<float>("nPFneuSelfVeto", vals_nPFneuSelfVeto, "number of neutral PF candidates after self veto");
+    out->addColumn<float>("nPFneuPhoVeto", vals_nPFneuPhoVeto, "number of neutral PF candidates after PF photon veto");
+
+    // raw isolation branches: all PF
+    out->addColumn<float>("customPfIsoRawSumAll", vals_isoRawSumAll, "custom PF iso raw, all PF, no veto");
+    out->addColumn<float>("customPfIsoRawAllSelfVeto", vals_isoRawAllSelfVeto, "custom PF iso raw, all PF, self veto");
+    out->addColumn<float>("customPfIsoRawAllDzVeto", vals_isoRawAllDzVeto, "custom PF iso raw, all PF, dz veto");
+    out->addColumn<float>("customPfIsoRawAllPFeleVeto", vals_isoRawAllPFeleVeto, "custom PF iso raw, all PF, PF electron veto");
+    out->addColumn<float>("customPfIsoRawAllPFphoVeto", vals_isoRawAllPFphoVeto, "custom PF iso raw, all PF, PF photon veto");
+    out->addColumn<float>("customPfIsoRawAllPFegmVeto", vals_isoRawAllPFegmVeto, "custom PF iso raw, all PF, PF EGM veto");
+
+    // relative isolation branches: all PF, corrected pt
+    out->addColumn<float>("customPfIsoRelSumAll", vals_isoRelSumAll, "custom PF iso relative, all PF, no veto, corrected pt");
+    out->addColumn<float>("customPfIsoRelAllSelfVeto", vals_isoRelAllSelfVeto, "custom PF iso relative, all PF, self veto, corrected pt");
+    out->addColumn<float>("customPfIsoRelAllDzVeto", vals_isoRelAllDzVeto, "custom PF iso relative, all PF, dz veto, corrected pt");
+    out->addColumn<float>("customPfIsoRelAllPFeleVeto", vals_isoRelAllPFeleVeto, "custom PF iso relative, all PF, PF electron veto, corrected pt");
+    out->addColumn<float>("customPfIsoRelAllPFphoVeto", vals_isoRelAllPFphoVeto, "custom PF iso relative, all PF, PF photon veto, corrected pt");
+    out->addColumn<float>("customPfIsoRelAllPFegmVeto", vals_isoRelAllPFegmVeto, "custom PF iso relative, all PF, PF EGM veto, corrected pt");
+
+    // relative isolation branches: all PF, uncorrected pt
+    out->addColumn<float>("customPfIsoRelSumAllUncorrPt", vals_isoRelSumAllUncorrPt, "custom PF iso relative, all PF, no veto, uncorrected pt");
+    out->addColumn<float>("customPfIsoRelAllSelfVetoUncorrPt", vals_isoRelAllSelfVetoUncorrPt, "custom PF iso relative, all PF, self veto, uncorrected pt");
+    out->addColumn<float>("customPfIsoRelAllDzVetoUncorrPt", vals_isoRelAllDzVetoUncorrPt, "custom PF iso relative, all PF, dz veto, uncorrected pt");
+    out->addColumn<float>("customPfIsoRelAllPFeleVetoUncorrPt", vals_isoRelAllPFeleVetoUncorrPt, "custom PF iso relative, all PF, PF electron veto, uncorrected pt");
+    out->addColumn<float>("customPfIsoRelAllPFphoVetoUncorrPt", vals_isoRelAllPFphoVetoUncorrPt, "custom PF iso relative, all PF, PF photon veto, uncorrected pt");
+    out->addColumn<float>("customPfIsoRelAllPFegmVetoUncorrPt", vals_isoRelAllPFegmVetoUncorrPt, "custom PF iso relative, all PF, PF EGM veto, uncorrected pt");
+
+    // charged-only branches
+    out->addColumn<float>("customPfIsoRawSumChg", vals_isoRawSumChg, "custom PF iso raw, charged PF, no veto");
+    out->addColumn<float>("customPfIsoRawChgSelfVeto", vals_isoRawChgSelfVeto, "custom PF iso raw, charged PF, self veto");
+    out->addColumn<float>("customPfIsoRawChgDzVeto", vals_isoRawChgDzVeto, "custom PF iso raw, charged PF, dz veto");
+    out->addColumn<float>("customPfIsoRawChgPFeleVeto", vals_isoRawChgPFeleVeto, "custom PF iso raw, charged PF, PF electron veto");
+
+    out->addColumn<float>("customPfIsoRelSumChg", vals_isoRelSumChg, "custom PF iso relative, charged PF, no veto, corrected pt");
+    out->addColumn<float>("customPfIsoRelChgSelfVeto", vals_isoRelChgSelfVeto, "custom PF iso relative, charged PF, self veto, corrected pt");
+    out->addColumn<float>("customPfIsoRelChgDzVeto", vals_isoRelChgDzVeto, "custom PF iso relative, charged PF, dz veto, corrected pt");
+    out->addColumn<float>("customPfIsoRelChgPFeleVeto", vals_isoRelChgPFeleVeto, "custom PF iso relative, charged PF, PF electron veto, corrected pt");
+
+    out->addColumn<float>("customPfIsoRelSumChgUncorrPt", vals_isoRelSumChgUncorrPt, "custom PF iso relative, charged PF, no veto, uncorrected pt");
+    out->addColumn<float>("customPfIsoRelChgSelfVetoUncorrPt", vals_isoRelChgSelfVetoUncorrPt, "custom PF iso relative, charged PF, self veto, uncorrected pt");
+    out->addColumn<float>("customPfIsoRelChgDzVetoUncorrPt", vals_isoRelChgDzVetoUncorrPt, "custom PF iso relative, charged PF, dz veto, uncorrected pt");
+    out->addColumn<float>("customPfIsoRelChgPFeleVetoUncorrPt", vals_isoRelChgPFeleVetoUncorrPt, "custom PF iso relative, charged PF, PF electron veto, uncorrected pt");
+
+    // neutral-only branches
+    out->addColumn<float>("customPfIsoRawSumNeu", vals_isoRawSumNeu, "custom PF iso raw, neutral PF, no veto");
+    out->addColumn<float>("customPfIsoRawNeuSelfVeto", vals_isoRawNeuSelfVeto, "custom PF iso raw, neutral PF, self veto");
+    out->addColumn<float>("customPfIsoRawNeuPFphoVeto", vals_isoRawNeuPFphoVeto, "custom PF iso raw, neutral PF, PF photon veto");
+
+    out->addColumn<float>("customPfIsoRelSumNeu", vals_isoRelSumNeu, "custom PF iso relative, neutral PF, no veto, corrected pt");
+    out->addColumn<float>("customPfIsoRelNeuSelfVeto", vals_isoRelNeuSelfVeto, "custom PF iso relative, neutral PF, self veto, corrected pt");
+    out->addColumn<float>("customPfIsoRelNeuPFphoVeto", vals_isoRelNeuPFphoVeto, "custom PF iso relative, neutral PF, PF photon veto, corrected pt");
+
+    out->addColumn<float>("customPfIsoRelSumNeuUncorrPt", vals_isoRelSumNeuUncorrPt, "custom PF iso relative, neutral PF, no veto, uncorrected pt");
+    out->addColumn<float>("customPfIsoRelNeuSelfVetoUncorrPt", vals_isoRelNeuSelfVetoUncorrPt, "custom PF iso relative, neutral PF, self veto, uncorrected pt");
+    out->addColumn<float>("customPfIsoRelNeuPFphoVetoUncorrPt", vals_isoRelNeuPFphoVetoUncorrPt, "custom PF iso relative, neutral PF, PF photon veto, uncorrected pt");
 
     // save to the event branches
     iEvent.put(std::move(out));
-
-    // clear
-    tkele_selected.clear();
-    pf_selected.clear();
 }
 
 //define this as a plug-in
