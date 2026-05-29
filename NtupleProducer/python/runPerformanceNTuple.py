@@ -833,7 +833,7 @@ def saveCands():
                                            moreVariables = cms.PSet(
                                                puppiWeight = cms.string("puppiWeight"),
                                                pdgId = cms.string("pdgId"),
-                                               charge = cms.string("charge")
+                                               charge = cms.string("charge"),
                                                vz = cms.string("vz"),
                                                dxy = cms.string("dxy"),
                                                z0 = cms.string("z0"),
@@ -854,7 +854,7 @@ def saveGenCands():
                                            ),
                                            moreVariables = cms.PSet(
                                                pdgId = cms.string("pdgId"),
-                                               charge = cms.string("charge")
+                                               charge = cms.string("charge"),
                                                vz = cms.string("vz"),
                                                status = cms.string("status"),
                                                prompt  = cms.string("2*statusFlags().isPrompt() + statusFlags().isDirectPromptTauDecayProduct()")
