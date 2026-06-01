@@ -21,6 +21,7 @@
 #include "L1Trigger/Phase2L1ParticleFlow/interface/L1TPFUtils.h"
 
 #include "DataFormats/L1TCorrelator/interface/TkElectron.h"
+#include "DataFormats/L1TParticleFlow/interface/PFTrack.h"
 
 #include <algorithm>
 
@@ -55,6 +56,8 @@ private:
     // I should put this under private but boh
     std::vector<CandRecord> pf_cands_;
     std::vector<CandRecord> tkele_cands_;
+
+    std::vector<edm::EDGetTokenT<std::vector<l1t::PFTrack>>> tk_tokens_; // tkIso check
 };
 
 L1TkEleL2IsoTableProducer::L1TkEleL2IsoTableProducer(const edm::ParameterSet& iConfig) :
@@ -65,6 +68,9 @@ L1TkEleL2IsoTableProducer::L1TkEleL2IsoTableProducer(const edm::ParameterSet& iC
     // I should take these from config but boh
     pf_cands_.emplace_back("L1PFCands", consumes<reco::CandidateView>(edm::InputTag("l1tLayer1:PF")), iConfig);
     tkele_cands_.emplace_back("TkEleL2", consumes<reco::CandidateView>(edm::InputTag("l1tLayer2EG:L1CtTkElectron")), iConfig);
+
+    tk_tokens_.push_back(consumes<std::vector<l1t::PFTrack>>(edm::InputTag("l1tLayer1Barrel", "DecodedTK")));
+    tk_tokens_.push_back(consumes<std::vector<l1t::PFTrack>>(edm::InputTag("l1tLayer1HGCal", "DecodedTK")));
 }
 
 L1TkEleL2IsoTableProducer::~L1TkEleL2IsoTableProducer() { }
@@ -78,6 +84,8 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
     std::vector<const reco::Candidate *> pf_selected;
     std::vector<const reco::Candidate *> tkele_selected;
 
+    std::vector<const l1t::PFTrack *> tk_selected;
+
     // for debugging purposes, add everything after each type of veto to the sum
     std::vector<float> vals_isoRawSumAll, vals_isoRawAllSelfVeto, vals_isoRawAllDzVeto, vals_isoRawAllPFeleVeto, vals_isoRawAllPFphoVeto, vals_isoRawAllPFegmVeto;
     std::vector<float> vals_isoRelSumAll, vals_isoRelAllSelfVeto, vals_isoRelAllDzVeto, vals_isoRelAllPFeleVeto, vals_isoRelAllPFphoVeto, vals_isoRelAllPFegmVeto;
@@ -88,10 +96,20 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
     std::vector<float> vals_isoRelSumChg, vals_isoRelChgSelfVeto, vals_isoRelChgDzVeto, vals_isoRelChgPFeleVeto;
     std::vector<float> vals_isoRelSumChgUncorrPt, vals_isoRelChgSelfVetoUncorrPt, vals_isoRelChgDzVetoUncorrPt, vals_isoRelChgPFeleVetoUncorrPt;
 
+    // charged PF with tkIso-like settings
+    std::vector<float> vals_isoRawChgTkLike;
+    std::vector<float> vals_isoRelChgTkLike;
+    std::vector<float> vals_isoRelChgTkLikeUncorrPt;
+
     // consider neutral only
     std::vector<float> vals_isoRawSumNeu, vals_isoRawNeuSelfVeto, vals_isoRawNeuPFphoVeto;
     std::vector<float> vals_isoRelSumNeu, vals_isoRelNeuSelfVeto, vals_isoRelNeuPFphoVeto;
     std::vector<float> vals_isoRelSumNeuUncorrPt, vals_isoRelNeuSelfVetoUncorrPt, vals_isoRelNeuPFphoVetoUncorrPt;
+
+    // neutrals with (my attempt for) brem-treatment
+    std::vector<float> vals_isoRawHybrid;
+    std::vector<float> vals_isoRelHybrid;
+    std::vector<float> vals_isoRelHybridUncorrPt; 
 
     // multiplicity
     std::vector<float> vals_nPFall, vals_nPFallDr0p3, vals_nPFallSelfVeto, vals_nPFallDz, vals_nPFallEleVeto, vals_nPFallPhoVeto, vals_nPFallEgmVeto;
@@ -119,6 +137,20 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
             if (tkele_cands.sel(j) && sel_(j)) {
                 tkele_selected.push_back(&j);
             }
+        }
+    }
+
+    // Get decoded L1 tracks used by tk isolation debugging
+    for (const auto & tk_token : tk_tokens_) {
+        edm::Handle<std::vector<l1t::PFTrack>> tracks;
+        iEvent.getByToken(tk_token, tracks);
+
+        if (!tracks.isValid()) continue;
+
+        tk_selected.reserve(tk_selected.size() + tracks->size());
+
+        for (const auto & tk : *tracks) {
+            tk_selected.push_back(&tk);
         }
     }
 
@@ -165,6 +197,10 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
     vals_isoRelChgDzVetoUncorrPt.resize(ncands);
     vals_isoRelChgPFeleVetoUncorrPt.resize(ncands);
 
+    vals_isoRawChgTkLike.resize(ncands);
+    vals_isoRelChgTkLike.resize(ncands);
+    vals_isoRelChgTkLikeUncorrPt.resize(ncands);
+
     vals_isoRawSumNeu.resize(ncands);
     vals_isoRawNeuSelfVeto.resize(ncands);
     vals_isoRawNeuPFphoVeto.resize(ncands);
@@ -176,6 +212,10 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
     vals_isoRelSumNeuUncorrPt.resize(ncands);
     vals_isoRelNeuSelfVetoUncorrPt.resize(ncands);
     vals_isoRelNeuPFphoVetoUncorrPt.resize(ncands);
+
+    vals_isoRawHybrid.resize(ncands);
+    vals_isoRelHybrid.resize(ncands);
+    vals_isoRelHybridUncorrPt.resize(ncands);
 
     vals_nPFall.resize(ncands);
     vals_nPFallDr0p3.resize(ncands);
@@ -198,8 +238,12 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
 
     const float bz = 3.8112; // for caloeta/phi calculation
 
+    //bool doPrint = false;
     // loop over electrons
     for (unsigned int iEle = 0; iEle < ncands; iEle++) {
+        //if (iEle == 0) doPrint = true;
+        
+
         const auto * tkEle = dynamic_cast<const l1t::TkElectron*>(tkele_selected[iEle]);
 
         const float eleEta = tkEle->eta();
@@ -221,6 +265,8 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
         const float ptCorr = tkEle->userFloat("ptCorr"); // regressed pt
         const float pt = tkEle->pt();
 
+        //if (doPrint) std::cout << "\nElectron regressed pT = " << ptCorr << ", default pT = " << pt << ", eta = " << eleEta << ", phi = " << elePhi << ", vz = " << eleZ << std::endl;
+        
         // raw isolation sums: all PF
         float isoRawSumAll = 0.;
         float isoRawAllSelfVeto = 0.;
@@ -235,10 +281,14 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
         float isoRawChgDzVeto = 0.;
         float isoRawChgPFeleVeto = 0.;
 
+        float isoRawChgTkLike = 0.;
+
         // raw isolation sums: neutral PF
         float isoRawSumNeu = 0.;
         float isoRawNeuSelfVeto = 0.;
         float isoRawNeuPFphoVeto = 0.;
+
+        float isoRawHybrid = 0.;
 
         // multiplicities: all PF
         float nPFall = ncands_pf;
@@ -262,6 +312,20 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
         float nPFneuSelfVeto = 0.;
         float nPFneuPhoVeto = 0.;
 
+        for (const auto * tk : tk_selected) {
+            const float tkPt = tk->pt();
+
+            const float tkEta = tk->eta();
+            const float tkPhi = tk->phi();
+            const float tkVz  = tk->vz();
+
+            const float dR = reco::deltaR(tkEta, tkPhi, eleEta, elePhi);
+
+            if (dR > 0.3f) continue;
+
+            //if (doPrint) std::cout << "L1 Track within dR (e,trk) < 0.3: pT = " << tkPt << ", eta = " << tkEta << ", phi = " << tkPhi << ", vz = " << tkVz << ", dR(e, PF) = " << dR << std::endl;
+        }
+
         // loop over PF candidates
         for (const auto * pf : pf_selected) {
             const float pfPt = pf->pt();
@@ -280,12 +344,45 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
 
             const float dR_ele_pf = reco::deltaR(pf->eta(), pf->phi(), refEta, refPhi);
 
+            // tkIso-like charged PF iso 
+            if (isChg) {
+                bool passTkLike = true;
+
+                if (pfPt < 2.) passTkLike = false;
+                if (dR_ele_pf < 0.03f) passTkLike = false;
+                if (dR_ele_pf > 0.20f) passTkLike = false;
+
+                const float dzTkLike = std::abs(eleZ - pf->vz());
+
+                if (dzTkLike > 0.6f) passTkLike = false;
+
+                if (passTkLike) isoRawChgTkLike += pfPt;
+            }
+
+            // special treatment for neutrals for brem treatment
+            bool addToHybrid = false;
+
+            if (isChg) {
+                const float dz = std::abs(eleZ - pf->vz());
+
+                addToHybrid = (dR_ele_pf > 0.05f) && (dR_ele_pf < 0.30f) && (dz < 0.5f);
+            } 
+            else {
+                const bool bremsLike = (std::abs(pf->eta() - egEta) < 0.03f) && (std::abs(reco::deltaPhi(pf->phi(), egPhi)) < 0.30f); // some loose definition
+                //const bool bremsLike = (std::abs(pf->eta() - egEta) < 0.03f) && (std::abs(reco::deltaPhi(pf->phi(), egPhi)) < 0.30f) && ((pfPt / std::max(ptCorr, 0.1f)) < 1.0f); // some loose definition
+
+                addToHybrid = (dR_ele_pf > 0.05f) && (dR_ele_pf < 0.30f) && (!bremsLike);
+            }
+            if (addToHybrid) isoRawHybrid += pfPt; 
+
+            // Usual isolations
             if (dR_ele_pf > 0.3f) continue;
 
             nPFallDr0p3++;
             isoRawSumAll += pfPt;
 
             if (isChg) {
+                //if (doPrint) std::cout << "Charged PF within dR (e,PF) < 0.3: pT = " << pfPt << ", eta = " << pf->eta() << ", phi = " << pf->phi() << ", vz = " << pf->vz() << ", dR(e, PF) = " << dR_ele_pf << std::endl;
                 nPFchgDr0p3++;
                 isoRawSumChg += pfPt;
             } else {
@@ -392,10 +489,14 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
         vals_isoRawChgDzVeto[iEle] = isoRawChgDzVeto;
         vals_isoRawChgPFeleVeto[iEle] = isoRawChgPFeleVeto;
 
+        vals_isoRawChgTkLike[iEle] = isoRawChgTkLike;
+
         vals_isoRawSumNeu[iEle] = isoRawSumNeu;
         vals_isoRawNeuSelfVeto[iEle] = isoRawNeuSelfVeto;
         vals_isoRawNeuPFphoVeto[iEle] = isoRawNeuPFphoVeto;
 
+        vals_isoRawHybrid[iEle] = isoRawHybrid;
+        
         // relative isolation using corrected pt
         vals_isoRelSumAll[iEle] = isoRawSumAll / ptCorr;
         vals_isoRelAllSelfVeto[iEle] = isoRawAllSelfVeto / ptCorr;
@@ -409,9 +510,13 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
         vals_isoRelChgDzVeto[iEle] = isoRawChgDzVeto / ptCorr;
         vals_isoRelChgPFeleVeto[iEle] = isoRawChgPFeleVeto / ptCorr;
 
+        vals_isoRelChgTkLike[iEle] = isoRawChgTkLike / ptCorr;
+
         vals_isoRelSumNeu[iEle] = isoRawSumNeu / ptCorr;
         vals_isoRelNeuSelfVeto[iEle] = isoRawNeuSelfVeto / ptCorr;
         vals_isoRelNeuPFphoVeto[iEle] = isoRawNeuPFphoVeto / ptCorr;
+
+        vals_isoRelHybrid[iEle] = isoRawHybrid / ptCorr;
 
         // relative isolation using uncorrected pt
         vals_isoRelSumAllUncorrPt[iEle] = isoRawSumAll / pt;
@@ -426,9 +531,13 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
         vals_isoRelChgDzVetoUncorrPt[iEle] = isoRawChgDzVeto / pt;
         vals_isoRelChgPFeleVetoUncorrPt[iEle] = isoRawChgPFeleVeto / pt;
 
+        vals_isoRelChgTkLikeUncorrPt[iEle] = isoRawChgTkLike / pt;
+
         vals_isoRelSumNeuUncorrPt[iEle] = isoRawSumNeu / pt;
         vals_isoRelNeuSelfVetoUncorrPt[iEle] = isoRawNeuSelfVeto / pt;
         vals_isoRelNeuPFphoVetoUncorrPt[iEle] = isoRawNeuPFphoVeto / pt;
+        
+        vals_isoRelHybridUncorrPt[iEle] = isoRawHybrid / pt;
     }
 
     // multiplicity branches
@@ -491,6 +600,11 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
     out->addColumn<float>("customPfIsoRelChgDzVetoUncorrPt", vals_isoRelChgDzVetoUncorrPt, "custom PF iso relative, charged PF, dz veto, uncorrected pt");
     out->addColumn<float>("customPfIsoRelChgPFeleVetoUncorrPt", vals_isoRelChgPFeleVetoUncorrPt, "custom PF iso relative, charged PF, PF electron veto, uncorrected pt");
 
+    // tkIso-like
+    out->addColumn<float>("customPfIsoRawChgTkLike", vals_isoRawChgTkLike, "charged PF isolation with tkIso-like selections");
+    out->addColumn<float>("customPfIsoRelChgTkLike", vals_isoRelChgTkLike, "charged PF isolation with tkIso-like selections, corrected pt");
+    out->addColumn<float>("customPfIsoRelChgTkLikeUncorrPt", vals_isoRelChgTkLikeUncorrPt, "charged PF isolation with tkIso-like selections, uncorrected pt");
+
     // neutral-only branches
     out->addColumn<float>("customPfIsoRawSumNeu", vals_isoRawSumNeu, "custom PF iso raw, neutral PF, no veto");
     out->addColumn<float>("customPfIsoRawNeuSelfVeto", vals_isoRawNeuSelfVeto, "custom PF iso raw, neutral PF, self veto");
@@ -503,6 +617,10 @@ L1TkEleL2IsoTableProducer::produce(edm::StreamID id, edm::Event& iEvent, const e
     out->addColumn<float>("customPfIsoRelSumNeuUncorrPt", vals_isoRelSumNeuUncorrPt, "custom PF iso relative, neutral PF, no veto, uncorrected pt");
     out->addColumn<float>("customPfIsoRelNeuSelfVetoUncorrPt", vals_isoRelNeuSelfVetoUncorrPt, "custom PF iso relative, neutral PF, self veto, uncorrected pt");
     out->addColumn<float>("customPfIsoRelNeuPFphoVetoUncorrPt", vals_isoRelNeuPFphoVetoUncorrPt, "custom PF iso relative, neutral PF, PF photon veto, uncorrected pt");
+
+    out->addColumn<float>("customPfIsoRawHybrid", vals_isoRawHybrid, "PF isolation with brems veto");
+    out->addColumn<float>("customPfIsoRelHybrid", vals_isoRelHybrid, "PF isolation with brems veto, corrected pt");
+    out->addColumn<float>("customPfIsoRelHybridUncorrPt", vals_isoRelHybridUncorrPt, "PF isolation with brems veto, uncorrected pt");
 
     // save to the event branches
     iEvent.put(std::move(out));
